@@ -1,0 +1,1364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Insan Biryani — POS</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍛</text></svg>">
+  <style>
+    /* ======= TOKENS ======= */
+    :root {
+      --pri:        #C07B35;
+      --pri-dk:     #8B5520;
+      --pri-lt:     #E8A95B;
+      --accent:     #F0C755;
+      --bg:         #FFF8EF;
+      --bg-card:    #FFFFFF;
+      --bg-soft:    #FEF3E4;
+      --border:     #EDD9BC;
+      --txt:        #2B1A0A;
+      --txt-2:      #6B4620;
+      --txt-3:      #A07248;
+      --green:      #2E7D32;
+      --green-lt:   #E8F5E9;
+      --red:        #C62828;
+      --red-lt:     #FFEBEE;
+      --blue:       #1565C0;
+      --blue-lt:    #E3F2FD;
+      --purple:     #6A1B9A;
+      --purple-lt:  #F3E5F5;
+      --r:          16px;
+      --r-sm:       10px;
+      --sh:         0 4px 18px rgba(160,90,20,.12);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--txt);
+      min-height: 100vh;
+      -webkit-tap-highlight-color: transparent;
+      font-size: 16px;
+    }
+
+    /* ======= HEADER ======= */
+    .hdr {
+      background: linear-gradient(135deg, #7B3B0F 0%, #C07B35 60%, #D99545 100%);
+      color: #fff;
+      padding: 16px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 200;
+      box-shadow: 0 4px 20px rgba(0,0,0,.2);
+    }
+    .hdr-brand { display: flex; align-items: center; gap: 14px; }
+    .hdr-icon {
+      width: 48px; height: 48px;
+      background: rgba(255,255,255,.2);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.6rem;
+    }
+    .hdr-title  { font-size: 1.4rem; font-weight: 800; }
+    .hdr-sub    { font-size: 0.85rem; opacity: .9; margin-top: 2px; }
+    .hdr-total  { text-align: right; }
+    .hdr-tlabel { font-size: 0.8rem; opacity: .8; text-transform: uppercase; font-weight: 700; }
+    .hdr-tamt   { font-size: 1.8rem; font-weight: 900; line-height: 1.1; }
+
+    /* ======= LAYOUT ======= */
+    .main { 
+      max-width: 1200px; 
+      margin: 0 auto; 
+      padding: 20px; 
+    }
+    
+    @media (min-width: 860px) {
+      .layout-split {
+        display: grid;
+        grid-template-columns: 1.5fr 1fr;
+        gap: 24px;
+        align-items: start;
+      }
+      .right-pane {
+        position: sticky;
+        top: 90px;
+      }
+    }
+
+    /* ======= STATS ======= */
+    .stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; margin-bottom: 20px; }
+    .stat {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--r-sm); padding: 16px 10px;
+      text-align: center; box-shadow: var(--sh);
+      display: flex; flex-direction: column; justify-content: center;
+    }
+    .stat-v { font-size: 1.6rem; font-weight: 900; color: var(--pri-dk); }
+    .stat-l { font-size: 0.8rem; color: var(--txt-3); text-transform: uppercase; font-weight: 700; margin-top: 4px; }
+
+    /* ======= SECTION CARD ======= */
+    .card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--r); padding: 20px; margin-bottom: 20px;
+      box-shadow: var(--sh);
+    }
+    .card-hdr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .card-title { font-size: 1.1rem; font-weight: 800; color: var(--pri-dk); display: flex; align-items: center; gap: 8px; }
+
+    /* ======= MENU ======= */
+    .cat-tabs { display: flex; flex-wrap: wrap; gap: 10px; padding-bottom: 10px; }
+    .cat-tab {
+      padding: 10px 18px; border-radius: 24px; border: 2px solid var(--border);
+      background: #fff; font-size: 0.95rem; font-weight: 700; color: var(--txt-2);
+      cursor: pointer; transition: all .2s;
+    }
+    .cat-tab.active { background: var(--pri); border-color: var(--pri); color: #fff; box-shadow: 0 4px 12px rgba(192,123,53,.3); }
+
+    .items-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 12px; margin-top: 14px;
+    }
+    .item-btn {
+      background: var(--bg-soft); border: 2px solid var(--border);
+      border-radius: var(--r-sm); padding: 14px; cursor: pointer;
+      text-align: left; transition: all .2s; position: relative;
+    }
+    .item-btn.in-cart { border-color: var(--pri); background: #FEF0DC; }
+    .item-name  { font-size: 1.05rem; font-weight: 800; color: var(--txt); line-height: 1.3; }
+    .item-price { font-size: 1.15rem; font-weight: 900; color: var(--pri-dk); margin-top: 6px; }
+    .item-qty-badge {
+      position: absolute; top: -8px; right: -8px;
+      background: var(--pri); color: #fff; border-radius: 12px;
+      font-size: 0.9rem; font-weight: 800; padding: 4px 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.2);
+    }
+
+    /* ======= CART ======= */
+    .cart-empty { text-align: center; padding: 30px 10px; color: var(--txt-3); font-size: 1.1rem; }
+    .cart-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+    .cart-info { flex: 1; }
+    .cart-iname { font-size: 1.1rem; font-weight: 800; }
+    .cart-iprice { font-size: 0.9rem; color: var(--txt-3); }
+    .qty-ctrl { display: flex; align-items: center; gap: 8px; }
+    .qbtn {
+      width: 36px; height: 36px; border-radius: 8px; border: 2px solid var(--border);
+      background: #fff; font-size: 1.4rem; font-weight: 800; cursor: pointer;
+      color: var(--pri-dk); display: flex; align-items: center; justify-content: center;
+    }
+    .qnum { font-size: 1.2rem; font-weight: 900; min-width: 28px; text-align: center; }
+    .cart-subtotal { font-size: 1.1rem; font-weight: 900; color: var(--pri-dk); min-width: 65px; text-align: right; }
+    .cart-foot {
+      background: var(--bg-soft); border-radius: var(--r-sm);
+      padding: 16px; margin-top: 16px; display: flex; justify-content: space-between; align-items: center;
+    }
+    .cart-foot-label { font-size: 1.1rem; font-weight: 800; }
+    .cart-foot-amt   { font-size: 1.8rem; font-weight: 900; color: var(--pri-dk); }
+
+    /* ======= FORMS & BUTTONS ======= */
+    .form-lbl { font-size: 0.85rem; font-weight: 800; text-transform: uppercase; color: var(--txt-2); margin-bottom: 6px; display: block;}
+    .form-inp {
+      padding: 14px; border: 2px solid var(--border); border-radius: var(--r-sm);
+      font-size: 1.2rem; width: 100%; margin-bottom: 12px; font-weight: 600;
+    }
+    .pay-modes { display: flex; gap: 10px; margin-bottom: 16px; }
+    .pm-btn {
+      flex: 1; padding: 12px; border: 2px solid var(--border); border-radius: var(--r-sm);
+      background: #fff; font-size: 1rem; font-weight: 800; cursor: pointer; color: var(--txt-2);
+    }
+    .pm-btn.active { background: var(--pri); border-color: var(--pri); color: #fff; }
+
+    .change-box {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 16px; border-radius: var(--r-sm); border: 2px solid var(--green); background: var(--green-lt); margin-bottom: 16px;
+    }
+    .change-box.neg { border-color: var(--red); background: var(--red-lt); }
+    .change-lbl { font-size: 1.1rem; font-weight: 800; color: var(--green); }
+    .change-amt { font-size: 1.6rem; font-weight: 900; color: var(--green); }
+    .change-box.neg .change-lbl, .change-box.neg .change-amt { color: var(--red); }
+
+    .btn {
+      padding: 14px 20px; border-radius: var(--r-sm); border: none;
+      font-size: 1.1rem; font-weight: 800; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .btn-primary { background: linear-gradient(135deg, var(--pri), var(--pri-dk)); color: #fff; }
+    .btn-success { background: linear-gradient(135deg, #43A047, #1B5E20); color: #fff; }
+    .btn-export { background: #1E88E5; color: #fff; padding: 10px 16px; font-size: 0.9rem; }
+    .btn-ghost { background: #fff; border: 2px solid var(--border); color: var(--txt-2); }
+    .btn-row { display: flex; gap: 12px; }
+
+    /* ======= LOG TABLE ======= */
+    .tbl-wrap { overflow-x: auto; border-radius: var(--r-sm); border: 1px solid var(--border); }
+    table.log { width: 100%; border-collapse: collapse; font-size: 0.95rem; white-space: nowrap; }
+    table.log th { background: var(--bg-soft); padding: 12px; text-align: left; }
+    table.log td { padding: 12px; border-bottom: 1px solid var(--border); }
+    .badge { padding: 4px 10px; border-radius: 12px; font-size: 0.8rem; font-weight: 800; }
+    .b-cash { background: var(--green-lt); color: var(--green); }
+    .b-gcash { background: var(--blue-lt); color: var(--blue); }
+    .b-maya { background: var(--purple-lt); color: var(--purple); }
+    .b-unpaid, .b-pending { background: var(--red-lt); color: var(--red); }
+    .b-done { background: var(--green-lt); color: var(--green); }
+    .log-actions { display: flex; gap: 6px; align-items: center; }
+    .log-actions .btn { padding: 5px 8px; font-size: 0.8rem; display: inline-flex; }
+
+    .ready-options { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 8px; }
+    .ready-btn {
+      padding: 10px 8px; border: 2px solid var(--border); border-radius: var(--r-sm);
+      background: #fff; font-size: 0.95rem; font-weight: 800; color: var(--txt-2); cursor: pointer;
+    }
+    .ready-btn.active { background: var(--pri); border-color: var(--pri); color: #fff; }
+    .ready-preview {
+      background: var(--bg-soft); border: 1px solid var(--border); border-radius: var(--r-sm);
+      color: var(--pri-dk); font-size: 0.95rem; font-weight: 800; padding: 10px 12px; margin-bottom: 14px;
+    }
+    .field-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .status-modes { display: flex; gap: 10px; margin-bottom: 12px; }
+    .status-btn {
+      flex: 1; padding: 12px; border: 2px solid var(--border); border-radius: var(--r-sm);
+      background: #fff; font-size: 1rem; font-weight: 800; color: var(--txt-2); cursor: pointer;
+    }
+    .status-btn.pending.active { background: var(--red); border-color: var(--red); color: #fff; }
+    .status-btn.done.active { background: var(--green); border-color: var(--green); color: #fff; }
+    .edit-items { border: 1px solid var(--border); border-radius: var(--r-sm); margin: 12px 0; overflow: hidden; }
+    .edit-item-row {
+      display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center;
+      padding: 10px 12px; border-bottom: 1px solid var(--border);
+    }
+    .edit-item-row:last-child { border-bottom: none; }
+    .edit-total {
+      display: flex; justify-content: space-between; align-items: center;
+      background: var(--bg-soft); border-radius: var(--r-sm); padding: 12px 14px;
+      font-size: 1.1rem; font-weight: 900; color: var(--pri-dk); margin: 12px 0;
+    }
+    .modal-wide { max-width: 760px; }
+
+    /* ======= MODALS (CRUD) ======= */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 500;
+      display: none; align-items: center; justify-content: center; padding: 20px;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-card {
+      background: #fff; border-radius: var(--r); width: 100%; max-width: 600px;
+      max-height: 90vh; overflow-y: auto; padding: 24px; box-shadow: 0 10px 40px rgba(0,0,0,.3);
+    }
+    
+    .menu-crud-row { display: flex; gap: 10px; margin-bottom: 10px; align-items: center; background: var(--bg-soft); padding: 10px; border-radius: var(--r-sm); border: 1px solid var(--border);}
+    .menu-crud-row input { flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 6px; font-size: 1rem; }
+    .menu-crud-row input[type="number"] { max-width: 100px; }
+    .crud-btn { padding: 8px 12px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
+    .btn-red { background: var(--red); color: white; }
+    .btn-green { background: var(--green); color: white; }
+
+    @media (max-width: 640px) {
+      .field-grid { grid-template-columns: 1fr; }
+      .ready-options { grid-template-columns: repeat(2, 1fr); }
+      .edit-item-row { grid-template-columns: 1fr; }
+      .log-actions { flex-wrap: wrap; }
+    }
+
+    /* ======= TOAST ======= */
+    .toast {
+      position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%) translateY(100px);
+      background: var(--green); color: #fff; padding: 14px 28px; border-radius: 30px;
+      font-size: 1.1rem; font-weight: 800; box-shadow: 0 4px 20px rgba(0,0,0,.3);
+      z-index: 9999; transition: transform .3s; pointer-events: none;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+  </style>
+</head>
+<body>
+
+<header class="hdr">
+  <div class="hdr-brand">
+    <div class="hdr-icon">🍛</div>
+    <div>
+      <div class="hdr-title">Insan Biryani</div>
+      <div class="hdr-sub">Night Market POS · Offline</div>
+    </div>
+  </div>
+  <div class="hdr-total">
+    <div class="hdr-tlabel">Tonight's Sales</div>
+    <div class="hdr-tamt" id="hdrTotal">₱0</div>
+  </div>
+</header>
+
+<div class="main layout-split">
+  
+  <div class="left-pane">
+    <div class="stats">
+      <div class="stat"><div class="stat-v" id="stTxns">0</div><div class="stat-l">Transactions</div></div>
+      <div class="stat"><div class="stat-v" id="stItems">0</div><div class="stat-l">Items Sold</div></div>
+      <div class="stat">
+        <div class="stat-v" id="stBest" style="font-size: 1.1rem; min-height: 38px; display: flex; align-items: center; justify-content: center; line-height: 1.2;">—</div>
+        <div class="stat-l">Best Seller</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hdr">
+        <div class="card-title">📋 Menu</div>
+        <button class="btn btn-ghost" style="padding: 8px 14px; font-size: 0.9rem;" onclick="openMenuModal()">⚙️ Manage Menu</button>
+      </div>
+      
+      <div class="cat-tabs" id="catTabs"></div>
+      <div id="menuContainer"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-hdr">
+        <div class="card-title">📊 Sales Log</div>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn btn-export" onclick="exportCSV()">⬇ Export CSV</button>
+          <button class="btn btn-red" style="padding: 10px 16px; font-size: 0.9rem;" onclick="clearSalesLog()">🗑 Reset Log</button>
+        </div>
+      </div>
+      <div class="tbl-wrap">
+        <table class="log">
+          <thead>
+            <tr>
+              <th>Order #</th>
+              <th>Customer</th>
+              <th>Time</th>
+              <th>Ready At</th>
+              <th>Qty</th>
+              <th>Items</th>
+              <th>Total</th>
+              <th>Payment</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="logBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="right-pane">
+    <div class="card">
+      <div class="card-title" style="margin-bottom: 16px;">🛒 Current Order</div>
+      <div id="cartBody"><div class="cart-empty">No items yet — tap a menu item to start.</div></div>
+      <div id="cartFoot" style="display:none;">
+        <div class="cart-foot">
+          <div class="cart-foot-label">Total</div>
+          <div class="cart-foot-amt" id="cartTotal">₱0</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title" style="margin-bottom: 16px;">💳 Order Details</div>
+
+      <label class="form-lbl">Customer Name (optional)</label>
+      <input id="customerNameIn" class="form-inp" type="text" placeholder="e.g. Juan" autocomplete="off">
+
+      <label class="form-lbl">Ready In</label>
+      <div class="ready-options" id="readyBtns">
+        <button class="ready-btn" onclick="setReadyMinutes(5,this)">5 mins</button>
+        <button class="ready-btn active" onclick="setReadyMinutes(10,this)">10 mins</button>
+        <button class="ready-btn" onclick="setReadyMinutes(20,this)">20 mins</button>
+        <button class="ready-btn" onclick="setReadyMinutes(25,this)">25 mins</button>
+      </div>
+      <div class="ready-preview" id="readyPreview">Ready time will appear here.</div>
+
+      <label class="form-lbl">Payment Mode</label>
+      <div class="pay-modes" id="orderPayModes">
+        <button class="pm-btn active" onclick="setMode('Unpaid',this)">Unpaid</button>
+        <button class="pm-btn" onclick="setMode('Cash',this)">💵 Cash</button>
+        <button class="pm-btn" onclick="setMode('GCash',this)">📱 GCash</button>
+        <button class="pm-btn" onclick="setMode('Maya',this)">💜 Maya</button>
+      </div>
+
+      <div id="cashWrap" style="display:none;">
+        <label class="form-lbl">Cash Tendered (₱)</label>
+        <input id="cashIn" class="form-inp" type="number" min="0" placeholder="0.00" oninput="calcChange()">
+        <div id="changeDsp" style="display:none;">
+          <div class="change-box" id="changeBox">
+            <span class="change-lbl" id="changeLbl">Change</span>
+            <span class="change-amt" id="changeAmt">₱0.00</span>
+          </div>
+        </div>
+      </div>
+
+      <label class="form-lbl">Notes (optional)</label>
+      <input id="notesIn" class="form-inp" type="text" placeholder="e.g. extra spicy">
+
+      <div class="btn-row" style="margin-top:10px;">
+        <button class="btn btn-ghost" onclick="clearCart()">🗑 Clear</button>
+        <button class="btn btn-success" style="flex:1" onclick="logSale()">✅ Log Order</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="menuModal" onclick="if(event.target===this) closeMenuModal()">
+  <div class="modal-card">
+    <div class="card-hdr">
+      <h2 style="font-size: 1.4rem; color: var(--pri-dk);">⚙️ Menu Manager</h2>
+      <button class="btn btn-ghost" onclick="closeMenuModal()">✕</button>
+    </div>
+    
+    <div style="margin-bottom: 20px;">
+      <label class="form-lbl">Select Category to Edit</label>
+      <select id="editCatSelect" class="form-inp" onchange="renderMenuEditorItems()"></select>
+    </div>
+
+    <div id="menuEditorItems"></div>
+
+    <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid var(--border);">
+      <h3 style="font-size: 1.1rem; margin-bottom: 10px;">➕ Add New Category</h3>
+      <div style="display: flex; gap: 10px;">
+        <input id="newCatName" class="form-inp" style="margin:0;" placeholder="e.g. 🥤 Drinks">
+        <button class="btn btn-primary" onclick="addCategory()">Add</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="orderEditModal" onclick="if(event.target===this) closeOrderEditModal()">
+  <div class="modal-card modal-wide">
+    <div class="card-hdr">
+      <h2 id="editOrderTitle" style="font-size: 1.4rem; color: var(--pri-dk);">Edit Order</h2>
+      <button class="btn btn-ghost" onclick="closeOrderEditModal()">✕</button>
+    </div>
+
+    <div class="field-grid">
+      <div>
+        <label class="form-lbl">Customer Name (optional)</label>
+        <input id="editCustomerNameIn" class="form-inp" type="text" placeholder="Customer name">
+      </div>
+      <div>
+        <label class="form-lbl">Notes (optional)</label>
+        <input id="editNotesIn" class="form-inp" type="text" placeholder="e.g. extra spicy">
+      </div>
+    </div>
+
+    <label class="form-lbl">Status</label>
+    <div class="status-modes" id="editStatusModes">
+      <button class="status-btn pending active" onclick="setEditStatus('pending',this)">Pending</button>
+      <button class="status-btn done" onclick="setEditStatus('done',this)">Done</button>
+    </div>
+
+    <label class="form-lbl">Ready In</label>
+    <div class="ready-options" id="editReadyBtns">
+      <button class="ready-btn" onclick="setEditReadyMinutes(5,this)">5 mins</button>
+      <button class="ready-btn active" onclick="setEditReadyMinutes(10,this)">10 mins</button>
+      <button class="ready-btn" onclick="setEditReadyMinutes(20,this)">20 mins</button>
+      <button class="ready-btn" onclick="setEditReadyMinutes(25,this)">25 mins</button>
+    </div>
+    <div class="ready-preview" id="editReadyPreview">Ready time will appear here.</div>
+
+    <label class="form-lbl">Items</label>
+    <div class="edit-items" id="editItemsBody"></div>
+    <div style="display:flex; gap:10px; margin-bottom:12px;">
+      <select id="editAddItemSelect" class="form-inp" style="margin:0;"></select>
+      <button class="btn btn-primary" onclick="addEditSelectedItem()">Add Item</button>
+    </div>
+    <div class="edit-total">
+      <span>Total</span>
+      <span id="editOrderTotal">₱0</span>
+    </div>
+
+    <label class="form-lbl">Payment Mode</label>
+    <div class="pay-modes" id="editPayModes">
+      <button class="pm-btn active" onclick="setEditMode('Unpaid',this)">Unpaid</button>
+      <button class="pm-btn" onclick="setEditMode('Cash',this)">💵 Cash</button>
+      <button class="pm-btn" onclick="setEditMode('GCash',this)">📱 GCash</button>
+      <button class="pm-btn" onclick="setEditMode('Maya',this)">💜 Maya</button>
+    </div>
+
+    <div id="editCashWrap" style="display:none;">
+      <label class="form-lbl">Cash Tendered (₱)</label>
+      <input id="editCashIn" class="form-inp" type="number" min="0" placeholder="0.00" oninput="calcEditChange()">
+      <div id="editChangeDsp" style="display:none;">
+        <div class="change-box" id="editChangeBox">
+          <span class="change-lbl" id="editChangeLbl">Change</span>
+          <span class="change-amt" id="editChangeAmt">₱0.00</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="btn-row" style="margin-top:16px;">
+      <button class="btn btn-ghost" onclick="closeOrderEditModal()">Cancel</button>
+      <button class="btn btn-success" style="flex:1;" onclick="saveOrderEdit()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  /* =============================================
+     STATE & DATA
+  ============================================= */
+  let cart = [];
+  let log  = [];
+  let payMode = 'Unpaid';
+  let readyMinutes = 10;
+  let editOrderId = null;
+  let editItems = [];
+  let editPayMode = 'Unpaid';
+  let editStatus = 'pending';
+  let editReadyMinutes = 10;
+  let editReadyDirty = false;
+
+  // Default Menu Data
+  let menuData = [
+    { name: "🥟 Samosa", items: [{name: "Vegetable Samosa", price: 50}, {name: "Beef Samosa", price: 70}, {name: "Chicken Samosa", price: 60}] },
+    { name: "🌿 Enoki Roll", items: [{name: "Beef Enoki Roll", price: 80}, {name: "Pork Enoki Roll", price: 70}] },
+    { name: "🍗 Wings", items: [{name: "Salted Egg", price: 150}, {name: "Soy Garlic", price: 150}, {name: "BBQ Honey", price: 150}] },
+    { name: "🍬 Tanghulu", items: [{name: "Mixed Tanghulu", price: 60}, {name: "Strawberry Tanghulu", price: 50}] },
+    { name: "🍚 Biryani", items: [{name: "Chicken Biryani", price: 210}, {name: "Beef Biryani", price: 230}, {name: "Chicken Cabsa", price: 220}] },
+    { name: "🥔 Potato Spud", items: [{name: "Ham and Bacon", price: 170}, {name: "Chili Con Carne", price: 170}] }
+  ];
+
+  /* =============================================
+     INIT
+  ============================================= */
+  (function init() {
+    try {
+      const savedMenu = localStorage.getItem('ib_menu');
+      if (savedMenu) menuData = JSON.parse(savedMenu);
+      
+      const savedLog = localStorage.getItem('ib_log');
+      if (savedLog) log = JSON.parse(savedLog);
+    } catch(e) {}
+
+    log = log.map(normalizeEntry);
+    
+    buildUI();
+    rebuildLog();
+    refreshStats();
+    updateReadyPreview();
+  })();
+
+  function esc(value) {
+    return String(value ?? '').replace(/[&<>"']/g, ch => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[ch]));
+  }
+
+  function csvCell(value) {
+    const text = String(value ?? '');
+    return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+  }
+
+  function orderTotal(items) {
+    return (items || []).reduce((s, i) => s + (Number(i.price) || 0) * (Number(i.qty) || 0), 0);
+  }
+
+  function orderItemCount(entry) {
+    return (entry.items || []).reduce((s, i) => s + (Number(i.qty) || 0), 0);
+  }
+
+  function isPaid(entry) {
+    return entry && entry.payMode && entry.payMode !== 'Unpaid';
+  }
+
+  function isCompletedSale(entry) {
+    return entry && entry.status === 'done' && isPaid(entry);
+  }
+
+  function normalizeEntry(entry) {
+    const items = Array.isArray(entry.items) ? entry.items.map(i => ({
+      name: String(i.name || ''),
+      price: Number(i.price) || 0,
+      qty: Number(i.qty) || 0
+    })).filter(i => i.name && i.qty > 0) : [];
+    const legacyDone = entry.status ? entry.status === 'done' : true;
+
+    return {
+      ...entry,
+      id: Number(entry.id) || 0,
+      orderNo: entry.orderNo,
+      customerName: String(entry.customerName || ''),
+      ts: entry.ts || '',
+      createdAtIso: entry.createdAtIso || '',
+      etaMinutes: Number(entry.etaMinutes) || 10,
+      readyAtIso: entry.readyAtIso || '',
+      items,
+      total: Number(entry.total) || orderTotal(items),
+      payMode: entry.payMode || (legacyDone ? 'Cash' : 'Unpaid'),
+      tendered: Number(entry.tendered) || 0,
+      notes: String(entry.notes || ''),
+      status: legacyDone ? 'done' : 'pending'
+    };
+  }
+
+  function saveLog() {
+    localStorage.setItem('ib_log', JSON.stringify(log));
+  }
+
+  function formatClock(date) {
+    if (!(date instanceof Date) || isNaN(date)) return '—';
+    let hours = date.getHours();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12 || 12;
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${hours}:${minutes} ${ampm}`;
+  }
+
+  function formatStamp(date) {
+    if (!(date instanceof Date) || isNaN(date)) return '';
+    return `${date.getMonth()+1}/${date.getDate()} ${formatClock(date)}`;
+  }
+
+  function addMinutes(date, mins) {
+    return new Date(date.getTime() + (Number(mins) || 0) * 60000);
+  }
+
+  function displayReadyAt(entry) {
+    if (!entry.readyAtIso) return '—';
+    return formatClock(new Date(entry.readyAtIso));
+  }
+
+  /* =============================================
+     DYNAMIC MENU RENDERING
+  ============================================= */
+  function buildUI() {
+    const tabs = document.getElementById('catTabs');
+    const container = document.getElementById('menuContainer');
+    tabs.innerHTML = '';
+    container.innerHTML = '';
+
+    menuData.forEach((cat, idx) => {
+      // Build Tabs
+      const btn = document.createElement('button');
+      btn.className = `cat-tab ${idx === 0 ? 'active' : ''}`;
+      btn.textContent = cat.name;
+      btn.onclick = (e) => {
+        document.querySelectorAll('.cat-tab').forEach(b => b.classList.remove('active'));
+        e.target.classList.add('active');
+        document.querySelectorAll('.cat-panel').forEach(p => p.style.display = 'none');
+        document.getElementById(`panel${idx}`).style.display = 'block';
+      };
+      tabs.appendChild(btn);
+
+      // Build Panels
+      const panel = document.createElement('div');
+      panel.id = `panel${idx}`;
+      panel.className = 'cat-panel';
+      panel.style.display = idx === 0 ? 'block' : 'none';
+
+      let itemsHtml = '<div class="items-grid">';
+      cat.items.forEach(item => {
+        const safeName = item.name.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+        itemsHtml += `
+          <button class="item-btn" data-key="${esc(item.name)}" onclick="addItem('${safeName}', ${item.price})">
+            <div class="item-name">${esc(item.name)}</div>
+            <div class="item-price">₱${item.price}</div>
+          </button>`;
+      });
+      itemsHtml += '</div>';
+      panel.innerHTML = itemsHtml;
+      container.appendChild(panel);
+    });
+    refreshBadges();
+  }
+
+  /* =============================================
+     MENU MANAGER (CRUD)
+  ============================================= */
+  function openMenuModal() {
+    refreshCategorySelect();
+    renderMenuEditorItems();
+    document.getElementById('menuModal').classList.add('open');
+  }
+
+  function closeMenuModal() {
+    document.getElementById('menuModal').classList.remove('open');
+    saveMenuData();
+    buildUI();
+  }
+
+  function saveMenuData() {
+    localStorage.setItem('ib_menu', JSON.stringify(menuData));
+  }
+
+  function refreshCategorySelect() {
+    const sel = document.getElementById('editCatSelect');
+    sel.innerHTML = menuData.map((c, i) => `<option value="${i}">${esc(c.name)}</option>`).join('');
+  }
+
+  function renderMenuEditorItems() {
+    const catIdx = document.getElementById('editCatSelect').value;
+    const container = document.getElementById('menuEditorItems');
+    if(catIdx === "" || !menuData[catIdx]) {
+      container.innerHTML = '<div class="cart-empty">No categories yet. Add a new category below.</div>';
+      return;
+    }
+    const cat = menuData[catIdx];
+    
+    let html = `
+      <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+        <h3 style="font-size:1.1rem">Items in ${esc(cat.name)}</h3>
+        <button class="crud-btn btn-red" onclick="deleteCategory(${catIdx})">🗑 Delete Entire Category</button>
+      </div>`;
+
+    cat.items.forEach((item, i) => {
+      html += `
+        <div class="menu-crud-row">
+          <input type="text" value="${esc(item.name)}" onchange="updateItem(${catIdx}, ${i}, 'name', this.value)">
+          <input type="number" value="${item.price}" onchange="updateItem(${catIdx}, ${i}, 'price', this.value)">
+          <button class="crud-btn btn-red" onclick="deleteItem(${catIdx}, ${i})">X</button>
+        </div>`;
+    });
+
+    html += `
+      <div class="menu-crud-row" style="background:var(--green-lt); border-color:var(--green);">
+        <input type="text" id="newItemName_${catIdx}" placeholder="New Item Name">
+        <input type="number" id="newItemPrice_${catIdx}" placeholder="Price">
+        <button class="crud-btn btn-green" onclick="addNewItem(${catIdx})">➕ Add</button>
+      </div>`;
+    
+    container.innerHTML = html;
+  }
+
+  function addCategory() {
+    const input = document.getElementById('newCatName');
+    const name = input.value.trim();
+    if(!name) return toast('Enter a category name', '#C62828');
+
+    menuData.push({ name, items: [] });
+    saveMenuData();
+    refreshCategorySelect();
+    document.getElementById('editCatSelect').value = menuData.length - 1;
+    input.value = '';
+    renderMenuEditorItems();
+    buildUI();
+    toast('Category Added');
+  }
+
+  function deleteCategory(catIdx) {
+    catIdx = Number(catIdx);
+    if(!menuData[catIdx]) return;
+    if(!confirm(`Delete "${menuData[catIdx].name}" and all items in this category?`)) return;
+
+    menuData.splice(catIdx, 1);
+    saveMenuData();
+    refreshCategorySelect();
+
+    if(menuData.length) {
+      document.getElementById('editCatSelect').value = Math.min(catIdx, menuData.length - 1);
+    }
+
+    renderMenuEditorItems();
+    buildUI();
+    toast('Category Deleted');
+  }
+
+  function updateItem(catIdx, itemIdx, field, val) {
+    if(field === 'price') val = parseFloat(val) || 0;
+    menuData[catIdx].items[itemIdx][field] = val;
+    saveMenuData();
+  }
+
+  function addNewItem(catIdx) {
+    const name = document.getElementById(`newItemName_${catIdx}`).value.trim();
+    const price = parseFloat(document.getElementById(`newItemPrice_${catIdx}`).value) || 0;
+    if(name && price > 0) {
+      menuData[catIdx].items.push({name, price});
+      saveMenuData();
+      renderMenuEditorItems();
+      toast('Item Added');
+    }
+  }
+
+  function deleteItem(catIdx, itemIdx) {
+    if(confirm('Remove this item?')) {
+      menuData[catIdx].items.splice(itemIdx, 1);
+      saveMenuData();
+      renderMenuEditorItems();
+    }
+  }
+
+  /* =============================================
+     CART LOGIC
+  ============================================= */
+  function addItem(name, price) {
+    const found = cart.find(i => i.name === name);
+    if (found) found.qty++; else cart.push({ name, price, qty: 1 });
+    renderCart(); refreshBadges(); calcChange();
+  }
+
+  function changeQty(idx, d) {
+    cart[idx].qty += d;
+    if (cart[idx].qty <= 0) cart.splice(idx, 1);
+    renderCart(); refreshBadges(); calcChange();
+  }
+
+  function renderCart() {
+    const body = document.getElementById('cartBody');
+    const foot = document.getElementById('cartFoot');
+    if (!cart.length) {
+      body.innerHTML = '<div class="cart-empty">No items yet — tap a menu item to start.</div>';
+      foot.style.display = 'none'; return;
+    }
+    let html = '';
+    cart.forEach((item, idx) => {
+      html += `
+        <div class="cart-row">
+          <div class="cart-info">
+            <div class="cart-iname">${esc(item.name)}</div>
+            <div class="cart-iprice">₱${item.price} each</div>
+          </div>
+          <div class="qty-ctrl">
+            <button class="qbtn" onclick="changeQty(${idx},-1)">−</button>
+            <span class="qnum">${item.qty}</span>
+            <button class="qbtn" onclick="changeQty(${idx}, 1)">+</button>
+          </div>
+          <div class="cart-subtotal">₱${item.price * item.qty}</div>
+        </div>`;
+    });
+    body.innerHTML = html;
+    foot.style.display = 'block';
+    document.getElementById('cartTotal').textContent = '₱' + cart.reduce((s, i) => s + i.price * i.qty, 0);
+  }
+
+  /* =============================================
+     UI HELPERS
+  ============================================= */
+  function refreshBadges() {
+    document.querySelectorAll('.item-btn').forEach(btn => {
+      const key = btn.getAttribute('data-key');
+      const found = cart.find(i => i.name === key);
+      const old = btn.querySelector('.item-qty-badge');
+      if (old) old.remove();
+      if (found) {
+        btn.classList.add('in-cart');
+        const b = document.createElement('div');
+        b.className = 'item-qty-badge'; b.textContent = found.qty;
+        btn.appendChild(b);
+      } else { btn.classList.remove('in-cart'); }
+    });
+  }
+
+  function clearCart() {
+    cart = []; renderCart(); refreshBadges();
+    document.getElementById('customerNameIn').value = '';
+    document.getElementById('cashIn').value = '';
+    document.getElementById('changeDsp').style.display = 'none';
+    document.getElementById('notesIn').value = '';
+    readyMinutes = 10;
+    setActiveButton(document.getElementById('readyBtns'), '10');
+    setMode('Unpaid');
+    updateReadyPreview();
+  }
+
+  /* =============================================
+     PAYMENT & LOG
+  ============================================= */
+  function setActiveButton(container, value) {
+    if (!container) return;
+    container.querySelectorAll('button').forEach(b => {
+      const isActive = b.textContent.trim().startsWith(String(value));
+      b.classList.toggle('active', isActive);
+    });
+  }
+
+  function setPaymentButtons(container, mode) {
+    if (!container) return;
+    container.querySelectorAll('.pm-btn').forEach(b => {
+      const label = b.textContent.replace(/[^A-Za-z]/g, '');
+      b.classList.toggle('active', label.toLowerCase() === String(mode).toLowerCase());
+    });
+  }
+
+  function setMode(mode, btn) {
+    payMode = mode;
+    setPaymentButtons(btn ? btn.closest('.pay-modes') : document.getElementById('orderPayModes'), mode);
+    document.getElementById('cashWrap').style.display = mode === 'Cash' ? 'block' : 'none';
+    calcChange();
+  }
+
+  function setReadyMinutes(mins, btn) {
+    readyMinutes = Number(mins) || 10;
+    setActiveButton(btn ? btn.closest('.ready-options') : document.getElementById('readyBtns'), readyMinutes);
+    updateReadyPreview();
+  }
+
+  function updateReadyPreview() {
+    const preview = document.getElementById('readyPreview');
+    if (!preview) return;
+    preview.textContent = `Order will be ready at ${formatClock(addMinutes(new Date(), readyMinutes))}`;
+  }
+
+  function calcChange() {
+    const total = cart.reduce((s, i) => s + i.price * i.qty, 0);
+    const tendered = parseFloat(document.getElementById('cashIn').value) || 0;
+    const dsp = document.getElementById('changeDsp');
+    if (!total || tendered <= 0 || payMode !== 'Cash') { dsp.style.display = 'none'; return; }
+    
+    dsp.style.display = 'block';
+    const diff = tendered - total;
+    document.getElementById('changeBox').className = diff >= 0 ? 'change-box' : 'change-box neg';
+    document.getElementById('changeLbl').textContent = diff >= 0 ? 'Change' : 'Short by';
+    document.getElementById('changeAmt').textContent = '₱' + Math.abs(diff).toFixed(2);
+  }
+
+  function getNextSaleId() {
+    return log.reduce((max, e) => Math.max(max, Number(e.id) || 0), 0) + 1;
+  }
+
+  function getOrderNo(entry) {
+    const orderNo = String(entry.orderNo || '').trim();
+    return orderNo || entry.id;
+  }
+
+  function logSale() {
+    if (!cart.length) return toast('⚠ Cart is empty!', '#C62828');
+    const total = cart.reduce((s, i) => s + i.price * i.qty, 0);
+    const tendered = parseFloat(document.getElementById('cashIn').value) || 0;
+    
+    if (payMode === 'Cash' && tendered < total) return toast('⚠ Insufficient cash!', '#C62828');
+
+    const now = new Date();
+    const readyAt = addMinutes(now, readyMinutes);
+
+    log.push({
+      id: getNextSaleId(),
+      customerName: document.getElementById('customerNameIn').value.trim(),
+      createdAtIso: now.toISOString(),
+      ts: formatStamp(now),
+      etaMinutes: readyMinutes,
+      readyAtIso: readyAt.toISOString(),
+      items: [...cart],
+      total,
+      payMode,
+      tendered: payMode === 'Cash' ? tendered : 0,
+      notes: document.getElementById('notesIn').value.trim(),
+      status: 'pending'
+    });
+    
+    saveLog();
+    rebuildLog(); refreshStats(); clearCart();
+    toast(`✅ Order logged! Ready at ${formatClock(readyAt)}`);
+  }
+
+  function rebuildLog() {
+    const tbody = document.getElementById('logBody');
+    if (!log.length) return tbody.innerHTML = '<tr><td colspan="10" class="cart-empty">No sales yet.</td></tr>';
+    
+    tbody.innerHTML = [...log].reverse().map(e => {
+      const orderNo = getOrderNo(e);
+      const payment = e.payMode || 'Unpaid';
+      const status = e.status === 'done' ? 'done' : 'pending';
+      const itemsOrdered = e.items.map(i => `${esc(i.name)} ×${i.qty}`).join(', ');
+      const doneButton = status === 'pending'
+        ? `<button class="btn btn-success" onclick="markDone(${e.id})">Done</button>`
+        : '';
+      
+      return `
+        <tr>
+          <td><strong>#${orderNo}</strong></td>
+          <td>${esc(e.customerName) || '—'}</td>
+          <td>${esc(e.ts)}</td>
+          <td>${displayReadyAt(e)}</td>
+          <td><strong>${orderItemCount(e)}</strong></td>
+          <td style="white-space: normal; max-width: 220px; font-size: 0.85rem; color: var(--txt-2); font-weight: 500;">${itemsOrdered}</td>
+          <td><strong>₱${e.total}</strong></td>
+          <td><span class="badge b-${payment.toLowerCase()}">${payment}</span></td>
+          <td><span class="badge b-${status}">${status === 'done' ? 'Done' : 'Pending'}</span></td>
+          <td>
+            <div class="log-actions">
+              <button class="btn btn-ghost" onclick="printReceipt(${e.id})">Print</button>
+              <button class="btn btn-ghost" onclick="openOrderEditModal(${e.id})">Edit</button>
+              ${doneButton}
+              <button class="btn btn-ghost" onclick="delLog(${e.id})">Del</button>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  function markDone(id) {
+    const entry = log.find(x => String(x.id) === String(id));
+    if (!entry) return toast('⚠ Record not found!', '#C62828');
+    if (!isPaid(entry)) {
+      toast('Record payment before marking Done.', '#C62828');
+      openOrderEditModal(id);
+      return;
+    }
+    entry.status = 'done';
+    saveLog();
+    rebuildLog();
+    refreshStats();
+    toast('✅ Order marked done!');
+  }
+
+  function openOrderEditModal(id) {
+    const entry = log.find(x => String(x.id) === String(id));
+    if (!entry) return toast('⚠ Record not found!', '#C62828');
+
+    editOrderId = entry.id;
+    editItems = entry.items.map(i => ({...i}));
+    editPayMode = entry.payMode || 'Unpaid';
+    editStatus = entry.status === 'done' ? 'done' : 'pending';
+    editReadyMinutes = Number(entry.etaMinutes) || 10;
+    editReadyDirty = false;
+
+    document.getElementById('editOrderTitle').textContent = `Edit Order #${getOrderNo(entry)}`;
+    document.getElementById('editCustomerNameIn').value = entry.customerName || '';
+    document.getElementById('editNotesIn').value = entry.notes || '';
+    document.getElementById('editCashIn').value = entry.tendered || '';
+
+    setEditStatus(editStatus);
+    setActiveButton(document.getElementById('editReadyBtns'), editReadyMinutes);
+    setEditMode(editPayMode);
+    updateEditReadyPreview();
+    refreshEditAddSelect();
+    renderEditItems();
+    document.getElementById('orderEditModal').classList.add('open');
+  }
+
+  function closeOrderEditModal() {
+    document.getElementById('orderEditModal').classList.remove('open');
+    editOrderId = null;
+    editItems = [];
+  }
+
+  function setEditStatus(status, btn) {
+    editStatus = status === 'done' ? 'done' : 'pending';
+    const container = btn ? btn.closest('.status-modes') : document.getElementById('editStatusModes');
+    container.querySelectorAll('.status-btn').forEach(b => {
+      b.classList.toggle('active', b.classList.contains(editStatus));
+    });
+  }
+
+  function setEditReadyMinutes(mins, btn) {
+    editReadyMinutes = Number(mins) || 10;
+    editReadyDirty = true;
+    setActiveButton(btn ? btn.closest('.ready-options') : document.getElementById('editReadyBtns'), editReadyMinutes);
+    updateEditReadyPreview();
+  }
+
+  function updateEditReadyPreview() {
+    const preview = document.getElementById('editReadyPreview');
+    const entry = log.find(x => String(x.id) === String(editOrderId));
+    if (!preview) return;
+    if (!editReadyDirty && entry && entry.readyAtIso) {
+      preview.textContent = `Current ready time: ${displayReadyAt(entry)}`;
+      return;
+    }
+    preview.textContent = `Order will be ready at ${formatClock(addMinutes(new Date(), editReadyMinutes))}`;
+  }
+
+  function setEditMode(mode, btn) {
+    editPayMode = mode;
+    setPaymentButtons(btn ? btn.closest('.pay-modes') : document.getElementById('editPayModes'), mode);
+    document.getElementById('editCashWrap').style.display = mode === 'Cash' ? 'block' : 'none';
+    calcEditChange();
+  }
+
+  function calcEditChange() {
+    const total = orderTotal(editItems);
+    const tendered = parseFloat(document.getElementById('editCashIn').value) || 0;
+    const dsp = document.getElementById('editChangeDsp');
+    if (!total || tendered <= 0 || editPayMode !== 'Cash') { dsp.style.display = 'none'; return; }
+
+    dsp.style.display = 'block';
+    const diff = tendered - total;
+    document.getElementById('editChangeBox').className = diff >= 0 ? 'change-box' : 'change-box neg';
+    document.getElementById('editChangeLbl').textContent = diff >= 0 ? 'Change' : 'Short by';
+    document.getElementById('editChangeAmt').textContent = '₱' + Math.abs(diff).toFixed(2);
+  }
+
+  function renderEditItems() {
+    const body = document.getElementById('editItemsBody');
+    if (!editItems.length) {
+      body.innerHTML = '<div class="cart-empty">No items in this order.</div>';
+    } else {
+      body.innerHTML = editItems.map((item, idx) => `
+        <div class="edit-item-row">
+          <div>
+            <div class="cart-iname">${esc(item.name)}</div>
+            <div class="cart-iprice">₱${item.price} each</div>
+          </div>
+          <div class="qty-ctrl">
+            <button class="qbtn" onclick="changeEditQty(${idx},-1)">−</button>
+            <span class="qnum">${item.qty}</span>
+            <button class="qbtn" onclick="changeEditQty(${idx},1)">+</button>
+          </div>
+          <button class="crud-btn btn-red" onclick="removeEditItem(${idx})">Remove</button>
+        </div>
+      `).join('');
+    }
+    document.getElementById('editOrderTotal').textContent = '₱' + orderTotal(editItems);
+    calcEditChange();
+  }
+
+  function changeEditQty(idx, d) {
+    if (!editItems[idx]) return;
+    editItems[idx].qty += d;
+    if (editItems[idx].qty <= 0) editItems.splice(idx, 1);
+    renderEditItems();
+  }
+
+  function removeEditItem(idx) {
+    editItems.splice(idx, 1);
+    renderEditItems();
+  }
+
+  function refreshEditAddSelect() {
+    const sel = document.getElementById('editAddItemSelect');
+    let html = '';
+    menuData.forEach((cat, catIdx) => {
+      if (!cat.items.length) return;
+      html += `<optgroup label="${esc(cat.name)}">`;
+      cat.items.forEach((item, itemIdx) => {
+        html += `<option value="${catIdx}|${itemIdx}">${esc(item.name)} - ₱${item.price}</option>`;
+      });
+      html += '</optgroup>';
+    });
+    sel.innerHTML = html || '<option value="">No menu items available</option>';
+  }
+
+  function addEditSelectedItem() {
+    const value = document.getElementById('editAddItemSelect').value;
+    if (!value) return;
+    const [catIdx, itemIdx] = value.split('|').map(Number);
+    const item = menuData[catIdx] && menuData[catIdx].items[itemIdx];
+    if (!item) return;
+    const found = editItems.find(i => i.name === item.name);
+    if (found) found.qty++;
+    else editItems.push({ name: item.name, price: item.price, qty: 1 });
+    renderEditItems();
+  }
+
+  function saveOrderEdit() {
+    const entry = log.find(x => String(x.id) === String(editOrderId));
+    if (!entry) return toast('⚠ Record not found!', '#C62828');
+    if (!editItems.length) return toast('Order needs at least one item.', '#C62828');
+
+    const total = orderTotal(editItems);
+    const tendered = parseFloat(document.getElementById('editCashIn').value) || 0;
+    if (editPayMode === 'Cash' && tendered < total) return toast('⚠ Insufficient cash!', '#C62828');
+    if (editStatus === 'done' && editPayMode === 'Unpaid') return toast('Record payment before marking Done.', '#C62828');
+
+    entry.customerName = document.getElementById('editCustomerNameIn').value.trim();
+    entry.notes = document.getElementById('editNotesIn').value.trim();
+    entry.items = editItems.map(i => ({...i}));
+    entry.total = total;
+    entry.payMode = editPayMode;
+    entry.tendered = editPayMode === 'Cash' ? tendered : 0;
+    entry.status = editStatus;
+    entry.etaMinutes = editReadyMinutes;
+    if (editReadyDirty || !entry.readyAtIso) {
+      entry.readyAtIso = addMinutes(new Date(), editReadyMinutes).toISOString();
+    }
+
+    saveLog();
+    rebuildLog();
+    refreshStats();
+    closeOrderEditModal();
+    toast('✅ Order updated!');
+  }
+
+  function printReceipt(id) {
+    const entry = log.find(x => String(x.id) === String(id));
+    if (!entry) return toast('⚠ Record not found!', '#C62828');
+
+    // Create or grab hidden printing iframe
+    const orderNo = getOrderNo(entry);
+    let iframe = document.getElementById('receiptIframe');
+    if (!iframe) {
+      iframe = document.createElement('iframe');
+      iframe.id = 'receiptIframe';
+      iframe.style.position = 'absolute';
+      iframe.style.width = '0px';
+      iframe.style.height = '0px';
+      iframe.style.border = 'none';
+      document.body.appendChild(iframe);
+    }
+
+    // Format ordered item rows
+    const itemsHtml = entry.items.map(i => `
+      <tr>
+        <td style="padding: 5px 0;">
+          ${esc(i.name)}<br>
+          <span style="font-size: 0.8rem; color: #666;">${i.qty} x ₱${i.price}</span>
+        </td>
+        <td style="text-align: right; padding: 5px 0; vertical-align: bottom;">₱${i.price * i.qty}</td>
+      </tr>
+    `).join('');
+    const customerLine = entry.customerName ? `<div><strong>Customer:</strong> ${esc(entry.customerName)}</div>` : '';
+    const notesLine = entry.notes ? `<div><strong>Notes:</strong> ${esc(entry.notes)}</div>` : '';
+    const statusText = entry.status === 'done' ? 'Done' : 'Pending';
+
+    // Receipt HTML Blueprint (Styled for standard 58mm thermal rolls)
+    const receiptContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>Receipt #${orderNo}</title>
+        <style>
+          @page { margin: 0; }
+          body {
+            font-family: 'Courier New', Courier, monospace;
+            width: 58mm;
+            margin: 0;
+            padding: 8px;
+            font-size: 12px;
+            color: #000;
+            background: #fff;
+          }
+          .text-center { text-align: center; }
+          .text-right { text-align: right; }
+          .divider { border-top: 1px dashed #000; margin: 8px 0; }
+          .header { font-size: 16px; font-weight: bold; margin-bottom: 2px; }
+          table { width: 100%; border-collapse: collapse; }
+          .total-row { font-size: 14px; font-weight: bold; }
+        </style>
+      </head>
+      <body>
+        <div class="text-center">
+          <div class="header">INSAN BIRYANI</div>
+          <div style="font-size: 10px; font-weight: bold;">Night Market POS</div>
+          <div style="font-size: 9px; color: #444;">Gapan City</div>
+        </div>
+        <div class="divider"></div>
+        <div><strong>Order #:</strong> ${orderNo}</div>
+        ${customerLine}
+        <div><strong>Date:</strong> ${esc(entry.ts)}</div>
+        <div><strong>Ready:</strong> ${displayReadyAt(entry)}</div>
+        <div><strong>Status:</strong> ${statusText}</div>
+        <div><strong>Payment:</strong> ${esc(entry.payMode || 'Unpaid')}</div>
+        ${notesLine}
+        <div class="divider"></div>
+        <table>
+          ${itemsHtml}
+        </table>
+        <div class="divider"></div>
+        <table>
+          <tr class="total-row">
+            <td>TOTAL:</td>
+            <td class="text-right">₱${entry.total}</td>
+          </tr>
+        </table>
+        <div class="divider"></div>
+        <div class="text-center" style="font-size: 10px; margin-top: 12px; letter-spacing: 0.5px;">
+          THANK YOU, COME AGAIN! 🍛
+        </div>
+        <script>
+          window.onload = function() {
+            window.print();
+          };
+        <\/script>
+      </body>
+      </html>
+    `;
+
+    const doc = iframe.contentWindow.document;
+    doc.open();
+    doc.write(receiptContent);
+    doc.close();
+  }
+
+  function delLog(id) {
+    if(!confirm('Delete this record?')) return;
+    log = log.filter(x => String(x.id) !== String(id));
+    saveLog();
+    rebuildLog(); refreshStats();
+  }
+
+  function clearSalesLog() {
+    if (!log.length) return toast('⚠ Log is already empty!', '#C62828');
+    
+    if (confirm('💥 WARNING: This will permanently delete ALL sales records for tonight. Make sure you exported your CSV first!\n\nDo you want to reset?')) {
+      log = [];
+      saveLog();
+      rebuildLog();
+      refreshStats();
+      toast('🗑 Sales Log Reset!');
+    }
+  }
+
+  function refreshStats() {
+    const completed = log.filter(isCompletedSale);
+    const total = completed.reduce((s, e) => s + e.total, 0);
+    const itemsCt = completed.reduce((s, e) => s + e.items.reduce((a, i) => a + i.qty, 0), 0);
+    
+    // Calculate best seller based on total quantities sold
+    const counts = {};
+    let bestSeller = "—";
+    let maxQty = 0;
+    
+    completed.forEach(e => {
+      e.items.forEach(i => {
+        counts[i.name] = (counts[i.name] || 0) + i.qty;
+      });
+    });
+
+    for (const name in counts) {
+      if (counts[name] > maxQty) {
+        maxQty = counts[name];
+        bestSeller = name;
+      }
+    }
+
+    document.getElementById('hdrTotal').textContent = '₱' + total.toLocaleString();
+    document.getElementById('stTxns').textContent = completed.length;
+    document.getElementById('stItems').textContent = itemsCt;
+    document.getElementById('stBest').textContent = bestSeller;
+  }
+
+  function toast(msg, bg = '#2E7D32') {
+    const el = document.getElementById('toast');
+    el.textContent = msg; el.style.background = bg;
+    el.classList.add('show');
+    setTimeout(() => el.classList.remove('show'), 2500);
+  }
+  
+  /* =============================================
+     DYNAMIC FILE EXPORT
+  ============================================= */
+  function exportCSV() {
+    if (!log.length) return toast('⚠ No sales records to export!', '#C62828');
+
+    let csv = "Order Number,Customer,Created Time,Ready At,Qty,Items,Total,Payment,Status,Notes\n";
+    log.forEach(e => {
+      const items = e.items.map(i => `${i.name} x${i.qty}`).join('; ');
+      csv += [
+        getOrderNo(e),
+        e.customerName,
+        e.ts,
+        displayReadyAt(e),
+        orderItemCount(e),
+        items,
+        e.total,
+        e.payMode || 'Unpaid',
+        e.status === 'done' ? 'Done' : 'Pending',
+        e.notes
+      ].map(csvCell).join(',') + '\n';
+    });
+    
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    
+    const d    = new Date();
+    const yyyy = d.getFullYear();
+    const mm   = String(d.getMonth() + 1).padStart(2, '0');
+    const dd   = String(d.getDate()).padStart(2, '0');
+    
+    a.href     = url;
+    a.download = `InsanBiryani_Sales_${yyyy}-${mm}-${dd}.csv`;
+    
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    toast('✅ CSV Exported!');
+  }
+</script>
+</body>
+</html>

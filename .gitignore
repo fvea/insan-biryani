@@ -1,0 +1,8 @@
+# Local timestamped backups — history lives in git now
+*.backup-*.html
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+desktop.ini
+*~

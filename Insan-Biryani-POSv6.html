@@ -344,7 +344,6 @@
               <th>Items</th>
               <th>Total</th>
               <th>Payment</th>
-              <th>Status</th>
               <th></th>
             </tr>
           </thead>
@@ -453,12 +452,6 @@
       </div>
     </div>
 
-    <label class="form-lbl">Status</label>
-    <div class="status-modes" id="editStatusModes">
-      <button class="status-btn pending active" onclick="setEditStatus('pending',this)">Pending</button>
-      <button class="status-btn done" onclick="setEditStatus('done',this)">Done</button>
-    </div>
-
     <label class="form-lbl">Ready In</label>
     <div class="ready-options" id="editReadyBtns">
       <button class="ready-btn" onclick="setEditReadyMinutes(5,this)">5 mins</button>
@@ -505,6 +498,38 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="payModal" onclick="if(event.target===this) closePayModal()">
+  <div class="modal-card">
+    <div class="card-hdr">
+      <h2 id="payModalTitle" style="font-size: 1.4rem; color: var(--pri-dk);">Mark as Done</h2>
+      <button class="btn btn-ghost" onclick="closePayModal()">✕</button>
+    </div>
+    <p id="payModalSummary" style="font-size:1.05rem; color:var(--txt-2); margin-bottom:18px;"></p>
+    <label class="form-lbl">How was it paid?</label>
+    <div class="pay-modes" id="payModalModes">
+      <button class="pm-btn" onclick="setPayModalMode('Cash',this)">💵 Cash</button>
+      <button class="pm-btn" onclick="setPayModalMode('GCash',this)">📱 GCash</button>
+      <button class="pm-btn" onclick="setPayModalMode('Maya',this)">💜 Maya</button>
+    </div>
+
+    <div id="payCashWrap" style="display:none;">
+      <label class="form-lbl">Cash Tendered (₱)</label>
+      <input id="payCashIn" class="form-inp" type="number" min="0" placeholder="0.00" oninput="calcPayChange()">
+      <div id="payChangeDsp" style="display:none;">
+        <div class="change-box" id="payChangeBox">
+          <span class="change-lbl" id="payChangeLbl">Change</span>
+          <span class="change-amt" id="payChangeAmt">₱0.00</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="btn-row" style="margin-top:16px;">
+      <button class="btn btn-ghost" onclick="closePayModal()">Cancel</button>
+      <button class="btn btn-success" style="flex:1;" onclick="confirmPayDone()">✅ Mark Done</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -520,6 +545,8 @@
   let editPayMode = 'Unpaid';
   let editStatus = 'pending';
   let logFilter = 'pending';
+  let payModalId = null;
+  let payModalMode = null;
   let editReadyMinutes = 10;
   let editReadyDirty = false;
 
@@ -966,7 +993,7 @@
 
     const rows = [...log].reverse().filter(e => (e.status === 'done' ? 'done' : 'pending') === logFilter);
     if (!rows.length) {
-      tbody.innerHTML = `<tr><td colspan="10" class="cart-empty">${logFilter === 'done' ? 'No completed orders yet.' : 'No active orders right now.'}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="9" class="cart-empty">${logFilter === 'done' ? 'No completed orders yet.' : 'No active orders right now.'}</td></tr>`;
       return;
     }
 
@@ -975,9 +1002,14 @@
       const payment = e.payMode || 'Unpaid';
       const status = e.status === 'done' ? 'done' : 'pending';
       const itemsOrdered = e.items.map(i => `${esc(i.name)} ×${i.qty}`).join(', ');
-      const doneButton = status === 'pending'
-        ? `<button class="btn btn-success" onclick="markDone(${e.id})">Done</button>`
-        : '';
+      const actions = `<div class="log-actions">
+              <button class="btn btn-ghost" onclick="printReceipt(${e.id})">Print</button>
+              <button class="btn btn-ghost" onclick="openOrderEditModal(${e.id})">Edit</button>
+              ${status === 'pending'
+                ? `<button class="btn btn-success" onclick="markDone(${e.id})">Done</button>`
+                : `<button class="btn btn-ghost" onclick="reopenOrder(${e.id})">↩ Active</button>`}
+              <button class="btn btn-ghost" onclick="delLog(${e.id})">Del</button>
+            </div>`;
       
       return `
         <tr>
@@ -989,15 +1021,7 @@
           <td style="white-space: normal; max-width: 220px; font-size: 0.85rem; color: var(--txt-2); font-weight: 500;">${itemsOrdered}</td>
           <td><strong>₱${e.total}</strong></td>
           <td><span class="badge b-${payment.toLowerCase()}">${payment}</span></td>
-          <td><span class="badge b-${status}">${status === 'done' ? 'Done' : 'Pending'}</span></td>
-          <td>
-            <div class="log-actions">
-              <button class="btn btn-ghost" onclick="printReceipt(${e.id})">Print</button>
-              <button class="btn btn-ghost" onclick="openOrderEditModal(${e.id})">Edit</button>
-              ${doneButton}
-              <button class="btn btn-ghost" onclick="delLog(${e.id})">Del</button>
-            </div>
-          </td>
+          <td>${actions}</td>
         </tr>
       `;
     }).join('');
@@ -1014,16 +1038,79 @@
   function markDone(id) {
     const entry = log.find(x => String(x.id) === String(id));
     if (!entry) return toast('⚠ Record not found!', '#C62828');
-    if (!isPaid(entry)) {
-      toast('Record payment before marking Done.', '#C62828');
-      openOrderEditModal(id);
-      return;
-    }
+    if (!isPaid(entry)) { openPayModal(id); return; }
     entry.status = 'done';
     saveLog();
     rebuildLog();
     refreshStats();
     toast('✅ Done — moved to the Done tab');
+  }
+
+  function openPayModal(id) {
+    const entry = log.find(x => String(x.id) === String(id));
+    if (!entry) return toast('⚠ Record not found!', '#C62828');
+    payModalId = id;
+    payModalMode = null;
+    document.getElementById('payModalTitle').textContent = `Done — Order #${getOrderNo(entry)}`;
+    const who = entry.customerName ? esc(entry.customerName) + ' · ' : '';
+    document.getElementById('payModalSummary').innerHTML = `${who}Total <strong>₱${entry.total}</strong> — record how the customer paid to complete this order.`;
+    setPaymentButtons(document.getElementById('payModalModes'), '');
+    document.getElementById('payCashIn').value = '';
+    document.getElementById('payCashWrap').style.display = 'none';
+    document.getElementById('payChangeDsp').style.display = 'none';
+    document.getElementById('payModal').classList.add('open');
+  }
+
+  function closePayModal() {
+    document.getElementById('payModal').classList.remove('open');
+    payModalId = null;
+  }
+
+  function setPayModalMode(mode, btn) {
+    payModalMode = mode;
+    setPaymentButtons(document.getElementById('payModalModes'), mode);
+    document.getElementById('payCashWrap').style.display = mode === 'Cash' ? 'block' : 'none';
+    calcPayChange();
+  }
+
+  function calcPayChange() {
+    const entry = log.find(x => String(x.id) === String(payModalId));
+    const total = entry ? entry.total : 0;
+    const tendered = parseFloat(document.getElementById('payCashIn').value) || 0;
+    const dsp = document.getElementById('payChangeDsp');
+    if (!total || tendered <= 0 || payModalMode !== 'Cash') { dsp.style.display = 'none'; return; }
+
+    dsp.style.display = 'block';
+    const diff = tendered - total;
+    document.getElementById('payChangeBox').className = diff >= 0 ? 'change-box' : 'change-box neg';
+    document.getElementById('payChangeLbl').textContent = diff >= 0 ? 'Change' : 'Short by';
+    document.getElementById('payChangeAmt').textContent = '₱' + Math.abs(diff).toFixed(2);
+  }
+
+  function confirmPayDone() {
+    const entry = log.find(x => String(x.id) === String(payModalId));
+    if (!entry) return toast('⚠ Record not found!', '#C62828');
+    if (!payModalMode) return toast('Select a payment method.', '#C62828');
+    const tendered = parseFloat(document.getElementById('payCashIn').value) || 0;
+    if (payModalMode === 'Cash' && tendered < entry.total) return toast('⚠ Insufficient cash!', '#C62828');
+    entry.payMode = payModalMode;
+    entry.tendered = payModalMode === 'Cash' ? tendered : 0;
+    entry.status = 'done';
+    saveLog();
+    rebuildLog();
+    refreshStats();
+    closePayModal();
+    toast(`✅ Paid (${payModalMode}) + done — moved to the Done tab`);
+  }
+
+  function reopenOrder(id) {
+    const entry = log.find(x => String(x.id) === String(id));
+    if (!entry) return toast('⚠ Record not found!', '#C62828');
+    entry.status = 'pending';
+    saveLog();
+    rebuildLog();
+    refreshStats();
+    toast('↩ Moved back to Active');
   }
 
   function openOrderEditModal(id) {
@@ -1042,7 +1129,6 @@
     document.getElementById('editNotesIn').value = entry.notes || '';
     document.getElementById('editCashIn').value = entry.tendered || '';
 
-    setEditStatus(editStatus);
     setActiveButton(document.getElementById('editReadyBtns'), editReadyMinutes);
     setEditMode(editPayMode);
     updateEditReadyPreview();
@@ -1055,14 +1141,6 @@
     document.getElementById('orderEditModal').classList.remove('open');
     editOrderId = null;
     editItems = [];
-  }
-
-  function setEditStatus(status, btn) {
-    editStatus = status === 'done' ? 'done' : 'pending';
-    const container = btn ? btn.closest('.status-modes') : document.getElementById('editStatusModes');
-    container.querySelectorAll('.status-btn').forEach(b => {
-      b.classList.toggle('active', b.classList.contains(editStatus));
-    });
   }
 
   function setEditReadyMinutes(mins, btn) {

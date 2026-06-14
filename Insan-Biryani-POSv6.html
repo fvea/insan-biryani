@@ -205,6 +205,16 @@
     .b-done { background: var(--green-lt); color: var(--green); }
     .log-actions { display: flex; gap: 6px; align-items: center; }
     .log-actions .btn { padding: 5px 8px; font-size: 0.8rem; display: inline-flex; }
+    .order-no { font-size: 1.5rem; font-weight: 900; color: var(--pri-dk); }
+    .log-tabs { display: flex; gap: 10px; margin-bottom: 14px; }
+    .log-tab {
+      padding: 10px 18px; border-radius: 24px; border: 2px solid var(--border);
+      background: #fff; font-size: 0.95rem; font-weight: 700; color: var(--txt-2);
+      cursor: pointer; transition: all .2s; display: flex; align-items: center; gap: 8px;
+    }
+    .log-tab.active { background: var(--pri); border-color: var(--pri); color: #fff; box-shadow: 0 4px 12px rgba(192,123,53,.3); }
+    .log-tab-count { background: var(--bg-soft); color: var(--txt-2); border-radius: 12px; padding: 1px 9px; font-size: 0.8rem; font-weight: 800; }
+    .log-tab.active .log-tab-count { background: rgba(255,255,255,.25); color: #fff; }
 
     .ready-options { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 8px; }
     .ready-btn {
@@ -317,6 +327,10 @@
           <button class="btn btn-export" onclick="exportCSV()">⬇ Export CSV</button>
           <button class="btn btn-red" style="padding: 10px 16px; font-size: 0.9rem;" onclick="clearSalesLog()">🗑 Reset Log</button>
         </div>
+      </div>
+      <div class="log-tabs" id="logTabs">
+        <button class="log-tab active" id="logTabPending" onclick="setLogFilter('pending', this)">🔥 Active <span class="log-tab-count" id="cntPending">0</span></button>
+        <button class="log-tab" id="logTabDone" onclick="setLogFilter('done', this)">✅ Done <span class="log-tab-count" id="cntDone">0</span></button>
       </div>
       <div class="tbl-wrap">
         <table class="log">
@@ -505,6 +519,7 @@
   let editItems = [];
   let editPayMode = 'Unpaid';
   let editStatus = 'pending';
+  let logFilter = 'pending';
   let editReadyMinutes = 10;
   let editReadyDirty = false;
 
@@ -943,9 +958,19 @@
 
   function rebuildLog() {
     const tbody = document.getElementById('logBody');
-    if (!log.length) return tbody.innerHTML = '<tr><td colspan="10" class="cart-empty">No sales yet.</td></tr>';
-    
-    tbody.innerHTML = [...log].reverse().map(e => {
+
+    const pendingCount = log.filter(e => e.status !== 'done').length;
+    const doneCount = log.length - pendingCount;
+    document.getElementById('cntPending').textContent = pendingCount;
+    document.getElementById('cntDone').textContent = doneCount;
+
+    const rows = [...log].reverse().filter(e => (e.status === 'done' ? 'done' : 'pending') === logFilter);
+    if (!rows.length) {
+      tbody.innerHTML = `<tr><td colspan="10" class="cart-empty">${logFilter === 'done' ? 'No completed orders yet.' : 'No active orders right now.'}</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = rows.map(e => {
       const orderNo = getOrderNo(e);
       const payment = e.payMode || 'Unpaid';
       const status = e.status === 'done' ? 'done' : 'pending';
@@ -956,7 +981,7 @@
       
       return `
         <tr>
-          <td><strong>#${orderNo}</strong></td>
+          <td><span class="order-no">#${orderNo}</span></td>
           <td>${esc(e.customerName) || '—'}</td>
           <td>${esc(e.ts)}</td>
           <td>${displayReadyAt(e)}</td>
@@ -978,6 +1003,14 @@
     }).join('');
   }
 
+  function setLogFilter(filter, btn) {
+    logFilter = filter === 'done' ? 'done' : 'pending';
+    document.querySelectorAll('.log-tab').forEach(b => b.classList.remove('active'));
+    const active = btn || document.getElementById(logFilter === 'done' ? 'logTabDone' : 'logTabPending');
+    if (active) active.classList.add('active');
+    rebuildLog();
+  }
+
   function markDone(id) {
     const entry = log.find(x => String(x.id) === String(id));
     if (!entry) return toast('⚠ Record not found!', '#C62828');
@@ -990,7 +1023,7 @@
     saveLog();
     rebuildLog();
     refreshStats();
-    toast('✅ Order marked done!');
+    toast('✅ Done — moved to the Done tab');
   }
 
   function openOrderEditModal(id) {

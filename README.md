@@ -14,7 +14,8 @@ Open `Insan-Biryani-POSv6.html` in any modern browser (double-click, or
 load it on the tablet). That's it. To "deploy" a new version, just put the
 updated HTML file on the device.
 
-> Version is tracked by filename (`...v6.html`). The repo is not under git yet.
+> Now under **git** — change history is tracked here. The filename still carries
+> the version (`...v6.html`) for what's loaded on the tablet.
 
 ## What it does
 

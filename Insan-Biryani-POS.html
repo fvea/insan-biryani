@@ -8,6 +8,9 @@
   <style>
     /* ======= TOKENS ======= */
     :root {
+      /* Base font scale — bumped up for easier reading on a tablet / with eyeglasses.
+         Everything else is sized in rem, so this scales the whole UI proportionally. */
+      font-size: 120%;
       --pri:        #C07B35;
       --pri-dk:     #8B5520;
       --pri-lt:     #E8A95B;
@@ -40,7 +43,7 @@
       color: var(--txt);
       min-height: 100vh;
       -webkit-tap-highlight-color: transparent;
-      font-size: 16px;
+      font-size: 1rem;
     }
 
     /* ======= HEADER ======= */
@@ -71,12 +74,25 @@
     .hdr-tamt   { font-size: 1.8rem; font-weight: 900; line-height: 1.1; }
 
     /* ======= LAYOUT ======= */
-    .main { 
-      max-width: 1200px; 
-      margin: 0 auto; 
-      padding: 20px; 
+    .main {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
     }
-    
+
+    /* Narrow screens (tablet portrait / resized window): single column. The two
+       side-by-side panes are "unwrapped" so the cards stack in workflow order:
+       Stats → Menu → Current Order → Order Details → Sales Log (history) last. */
+    .layout-split { display: flex; flex-direction: column; }
+    @media (max-width: 859.98px) {
+      .left-pane, .right-pane { display: contents; }
+      .stats           { order: 1; }
+      .menu-section    { order: 2; }
+      .cart-section    { order: 3; }
+      .details-section { order: 4; }
+      .log-section     { order: 5; }
+    }
+
     @media (min-width: 860px) {
       .layout-split {
         display: grid;
@@ -205,7 +221,7 @@
     .b-done { background: var(--green-lt); color: var(--green); }
     .log-actions { display: flex; gap: 6px; align-items: center; }
     .log-actions .btn { padding: 5px 8px; font-size: 0.8rem; display: inline-flex; }
-    .order-no { font-size: 1.5rem; font-weight: 900; color: var(--pri-dk); }
+    .order-no { font-size: 1.1rem; font-weight: 900; color: var(--pri-dk); }
     .log-tabs { display: flex; gap: 10px; margin-bottom: 14px; }
     .log-tab {
       padding: 10px 18px; border-radius: 24px; border: 2px solid var(--border);
@@ -310,7 +326,7 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card menu-section">
       <div class="card-hdr">
         <div class="card-title">📋 Menu</div>
         <button class="btn btn-ghost" style="padding: 8px 14px; font-size: 0.9rem;" onclick="openMenuModal()">⚙️ Manage Menu</button>
@@ -320,7 +336,7 @@
       <div id="menuContainer"></div>
     </div>
 
-    <div class="card">
+    <div class="card log-section">
       <div class="card-hdr">
         <div class="card-title">📊 Sales Log</div>
         <div style="display: flex; gap: 8px;">
@@ -354,7 +370,7 @@
   </div>
 
   <div class="right-pane">
-    <div class="card">
+    <div class="card cart-section">
       <div class="card-title" style="margin-bottom: 16px;">🛒 Current Order</div>
       <div id="cartBody"><div class="cart-empty">No items yet — tap a menu item to start.</div></div>
       <div id="cartFoot" style="display:none;">
@@ -365,7 +381,7 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card details-section">
       <div class="card-title" style="margin-bottom: 16px;">💳 Order Details</div>
 
       <label class="form-lbl">Customer Name (optional)</label>
@@ -1294,7 +1310,7 @@
       <tr>
         <td style="padding: 5px 0;">
           ${esc(i.name)}<br>
-          <span style="font-size: 0.8rem; color: #666;">${i.qty} x ₱${i.price}</span>
+          <span style="font-size: 12px; color: #666;">${i.qty} x ₱${i.price}</span>
         </td>
         <td style="text-align: right; padding: 5px 0; vertical-align: bottom;">₱${i.price * i.qty}</td>
       </tr>
@@ -1317,26 +1333,27 @@
             width: 58mm;
             margin: 0;
             padding: 8px;
-            font-size: 12px;
+            font-size: 15px;          /* sized to fit a 58mm roll, slightly larger for readability */
             color: #000;
             background: #fff;
           }
           .text-center { text-align: center; }
           .text-right { text-align: right; }
           .divider { border-top: 1px dashed #000; margin: 8px 0; }
-          .header { font-size: 16px; font-weight: bold; margin-bottom: 2px; }
+          .header { font-size: 20px; font-weight: bold; margin-bottom: 2px; }
           table { width: 100%; border-collapse: collapse; }
-          .total-row { font-size: 14px; font-weight: bold; }
+          .total-row { font-size: 17px; font-weight: bold; }
+          /* Order number — emphasised at the bottom-center, kept within the roll width */
+          .receipt-order-no { font-size: 28px; font-weight: bold; line-height: 1.1; margin-top: 6px; }
         </style>
       </head>
       <body>
         <div class="text-center">
           <div class="header">INSAN BIRYANI</div>
-          <div style="font-size: 10px; font-weight: bold;">Night Market POS</div>
-          <div style="font-size: 9px; color: #444;">Gapan City</div>
+          <div style="font-size: 12px; font-weight: bold;">Night Market POS</div>
+          <div style="font-size: 11px; color: #444;">Gapan City</div>
         </div>
         <div class="divider"></div>
-        <div><strong>Order #:</strong> ${orderNo}</div>
         ${customerLine}
         <div><strong>Date:</strong> ${esc(entry.ts)}</div>
         <div><strong>Ready:</strong> ${displayReadyAt(entry)}</div>
@@ -1355,9 +1372,11 @@
           </tr>
         </table>
         <div class="divider"></div>
-        <div class="text-center" style="font-size: 10px; margin-top: 12px; letter-spacing: 0.5px;">
+        <div class="text-center" style="font-size: 12px; margin-top: 12px; letter-spacing: 0.5px;">
           THANK YOU, COME AGAIN! 🍛
         </div>
+        <div class="divider"></div>
+        <div class="text-center receipt-order-no">Order # ${orderNo}</div>
         <script>
           window.onload = function() {
             window.print();

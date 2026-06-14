@@ -4,18 +4,20 @@ A single-file, offline point-of-sale app for a night-market food stall (Insan
 Biryani, Gapan City). Built to run in a browser on a tablet with no internet,
 no install, and no backend.
 
-- **One file:** `Insan-Biryani-POSv6.html` — all HTML, CSS, and JS inline.
+- **One file:** `Insan-Biryani-POS.html` — all HTML, CSS, and JS inline.
 - **No dependencies, no build step, no framework.** Vanilla JS.
 - **Offline-first:** all data lives in the browser's `localStorage`.
 
 ## Run it
 
-Open `Insan-Biryani-POSv6.html` in any modern browser (double-click, or
+Open `Insan-Biryani-POS.html` in any modern browser (double-click, or
 load it on the tablet). That's it. To "deploy" a new version, just put the
 updated HTML file on the device.
 
-> Now under **git** — change history is tracked here. The filename still carries
-> the version (`...v6.html`) for what's loaded on the tablet.
+> Now under **git** — change history is tracked here, so the filename no longer
+> carries a version number. On the tablet, all data lives in `localStorage`; if
+> that browser keys storage per filename, verify the menu + sales still appear
+> after swapping in a renamed file before deleting the old one.
 
 ## What it does
 

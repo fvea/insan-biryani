@@ -1319,7 +1319,41 @@
     const notesLine = entry.notes ? `<div><strong>Notes:</strong> ${esc(entry.notes)}</div>` : '';
     const statusText = entry.status === 'done' ? 'Done' : 'Pending';
 
+    // Shared receipt body — rendered twice (customer copy + store copy)
+    const receiptBody = `
+      <div class="text-center">
+        <div class="header">INSAN BIRYANI</div>
+        <div style="font-size: 12px; font-weight: bold;">Night Market POS</div>
+        <div style="font-size: 11px; color: #444;">Gapan City</div>
+      </div>
+      <div class="divider"></div>
+      ${customerLine}
+      <div><strong>Date:</strong> ${esc(entry.ts)}</div>
+      <div><strong>Ready:</strong> ${displayReadyAt(entry)}</div>
+      <div><strong>Status:</strong> ${statusText}</div>
+      <div><strong>Payment:</strong> ${esc(entry.payMode || 'Unpaid')}</div>
+      ${notesLine}
+      <div class="divider"></div>
+      <table>
+        ${itemsHtml}
+      </table>
+      <div class="divider"></div>
+      <table>
+        <tr class="total-row">
+          <td>TOTAL:</td>
+          <td class="text-right">₱${entry.total}</td>
+        </tr>
+      </table>
+      <div class="divider"></div>
+      <div class="text-center" style="font-size: 12px; margin-top: 12px; letter-spacing: 0.5px;">
+        THANK YOU, COME AGAIN! 🍛
+      </div>
+      <div class="divider"></div>
+      <div class="text-center receipt-order-no">Order # ${orderNo}</div>
+    `;
+
     // Receipt HTML Blueprint (Styled for standard 58mm thermal rolls)
+    // Two copies per print: customer copy + store copy, separated by a page break
     const receiptContent = `
       <!DOCTYPE html>
       <html>
@@ -1332,7 +1366,7 @@
             font-family: 'Courier New', Courier, monospace;
             width: 58mm;
             margin: 0;
-            padding: 8px;
+            padding: 0;
             font-size: 15px;          /* sized to fit a 58mm roll, slightly larger for readability */
             color: #000;
             background: #fff;
@@ -1345,38 +1379,20 @@
           .total-row { font-size: 17px; font-weight: bold; }
           /* Order number — emphasised at the bottom-center, kept within the roll width */
           .receipt-order-no { font-size: 28px; font-weight: bold; line-height: 1.1; margin-top: 6px; }
+          .copy-block { padding: 8px; }
+          .copy-label { text-align: center; font-size: 11px; font-weight: bold; letter-spacing: 1px; margin-bottom: 6px; }
+          .page-break { page-break-after: always; }
         </style>
       </head>
       <body>
-        <div class="text-center">
-          <div class="header">INSAN BIRYANI</div>
-          <div style="font-size: 12px; font-weight: bold;">Night Market POS</div>
-          <div style="font-size: 11px; color: #444;">Gapan City</div>
+        <div class="copy-block page-break">
+          <div class="copy-label">*** CUSTOMER COPY ***</div>
+          ${receiptBody}
         </div>
-        <div class="divider"></div>
-        ${customerLine}
-        <div><strong>Date:</strong> ${esc(entry.ts)}</div>
-        <div><strong>Ready:</strong> ${displayReadyAt(entry)}</div>
-        <div><strong>Status:</strong> ${statusText}</div>
-        <div><strong>Payment:</strong> ${esc(entry.payMode || 'Unpaid')}</div>
-        ${notesLine}
-        <div class="divider"></div>
-        <table>
-          ${itemsHtml}
-        </table>
-        <div class="divider"></div>
-        <table>
-          <tr class="total-row">
-            <td>TOTAL:</td>
-            <td class="text-right">₱${entry.total}</td>
-          </tr>
-        </table>
-        <div class="divider"></div>
-        <div class="text-center" style="font-size: 12px; margin-top: 12px; letter-spacing: 0.5px;">
-          THANK YOU, COME AGAIN! 🍛
+        <div class="copy-block">
+          <div class="copy-label">*** STORE COPY ***</div>
+          ${receiptBody}
         </div>
-        <div class="divider"></div>
-        <div class="text-center receipt-order-no">Order # ${orderNo}</div>
         <script>
           window.onload = function() {
             window.print();

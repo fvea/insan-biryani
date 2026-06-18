@@ -1317,7 +1317,18 @@
     `).join('');
     const customerLine = entry.customerName ? `<div><strong>Customer:</strong> ${esc(entry.customerName)}</div>` : '';
     const notesLine = entry.notes ? `<div><strong>Notes:</strong> ${esc(entry.notes)}</div>` : '';
-    const statusText = entry.status === 'done' ? 'Done' : 'Pending';
+    const paid = isPaid(entry);
+    const showCash = entry.payMode === 'Cash' && entry.tendered > 0;
+    const cashDiff = entry.tendered - entry.total;
+    const cashLabel = cashDiff >= 0 ? 'Change' : 'Short by';
+    const cashLines = showCash ? `
+      <div><strong>Cash Tendered:</strong> ₱${entry.tendered.toFixed(2)}</div>
+      <div><strong>${cashLabel}:</strong> ₱${Math.abs(cashDiff).toFixed(2)}</div>
+    ` : '';
+    const paidBanner = `
+      <div class="divider"></div>
+      <div class="text-center paid-banner ${paid ? 'paid' : 'unpaid'}">*** ${paid ? 'PAID' : 'UNPAID'} ***</div>
+    `;
 
     // Shared receipt body — rendered twice (customer copy + store copy)
     const receiptBody = `
@@ -1330,8 +1341,8 @@
       ${customerLine}
       <div><strong>Date:</strong> ${esc(entry.ts)}</div>
       <div><strong>Ready:</strong> ${displayReadyAt(entry)}</div>
-      <div><strong>Status:</strong> ${statusText}</div>
       <div><strong>Payment:</strong> ${esc(entry.payMode || 'Unpaid')}</div>
+      ${cashLines}
       ${notesLine}
       <div class="divider"></div>
       <table>
@@ -1344,6 +1355,7 @@
           <td class="text-right">₱${entry.total}</td>
         </tr>
       </table>
+      ${paidBanner}
       <div class="divider"></div>
       <div class="text-center" style="font-size: 12px; margin-top: 12px; letter-spacing: 0.5px;">
         THANK YOU, COME AGAIN! 🍛
@@ -1379,6 +1391,9 @@
           .total-row { font-size: 17px; font-weight: bold; }
           /* Order number — emphasised at the bottom-center, kept within the roll width */
           .receipt-order-no { font-size: 28px; font-weight: bold; line-height: 1.1; margin-top: 6px; }
+          .paid-banner { font-size: 18px; font-weight: bold; letter-spacing: 1px; margin: 6px 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .paid-banner.paid { color: #2E7D32; }
+          .paid-banner.unpaid { color: #C62828; }
           .copy-block { padding: 8px; }
           .copy-label { text-align: center; font-size: 11px; font-weight: bold; letter-spacing: 1px; margin-bottom: 6px; }
           .page-break { page-break-after: always; }

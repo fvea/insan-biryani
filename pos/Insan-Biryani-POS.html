@@ -1327,10 +1327,10 @@
     ` : '';
     const paidBanner = `
       <div class="divider"></div>
-      <div class="text-center paid-banner ${paid ? 'paid' : 'unpaid'}">*** ${paid ? 'PAID' : 'UNPAID'} ***</div>
+      <div class="text-center paid-banner">*** ${paid ? 'PAID' : 'UNPAID'} ***</div>
     `;
 
-    // Shared receipt body — rendered twice (customer copy + store copy)
+    // Receipt body
     const receiptBody = `
       <div class="text-center">
         <div class="header">INSAN BIRYANI</div>
@@ -1365,7 +1365,6 @@
     `;
 
     // Receipt HTML Blueprint (Styled for standard 58mm thermal rolls)
-    // Two copies per print: customer copy + store copy, separated by a page break
     const receiptContent = `
       <!DOCTYPE html>
       <html>
@@ -1391,23 +1390,11 @@
           .total-row { font-size: 17px; font-weight: bold; }
           /* Order number — emphasised at the bottom-center, kept within the roll width */
           .receipt-order-no { font-size: 28px; font-weight: bold; line-height: 1.1; margin-top: 6px; }
-          .paid-banner { font-size: 18px; font-weight: bold; letter-spacing: 1px; margin: 6px 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-          .paid-banner.paid { color: #2E7D32; }
-          .paid-banner.unpaid { color: #C62828; }
-          .copy-block { padding: 8px; }
-          .copy-label { text-align: center; font-size: 11px; font-weight: bold; letter-spacing: 1px; margin-bottom: 6px; }
-          .page-break { page-break-after: always; }
+          .paid-banner { font-size: 18px; font-weight: bold; letter-spacing: 1px; margin: 6px 0; }
         </style>
       </head>
       <body>
-        <div class="copy-block page-break">
-          <div class="copy-label">*** CUSTOMER COPY ***</div>
-          ${receiptBody}
-        </div>
-        <div class="copy-block">
-          <div class="copy-label">*** STORE COPY ***</div>
-          ${receiptBody}
-        </div>
+        ${receiptBody}
         <script>
           window.onload = function() {
             window.print();

@@ -4,13 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A single-file, offline point-of-sale app for a night-market food stall (Insan Biryani, Gapan City). The **entire app is one file**: `Insan-Biryani-POS.html` — all HTML, CSS (inline `<style>`), and JS (inline `<script>`) in ~1475 lines. Vanilla JS, no framework, no dependencies, no build step, no backend.
+A single-file, offline point-of-sale app for a night-market food stall (Insan Biryani, Gapan City). The **entire app is one file**: `Insan-Biryani-POS.html` — all HTML, CSS (inline `<style>`), and JS (inline `<script>`) in ~1870 lines. Vanilla JS, no framework, no dependencies, no build step, no backend.
 
 ## Run / develop / "deploy"
 
 - **Run:** open `Insan-Biryani-POS.html` in any modern browser (double-click). There is no dev server, no `npm install`, no build.
 - **Deploy:** copy the updated HTML file onto the tablet. That's the whole release process.
-- **No test or lint tooling exists** — no `package.json`, no test runner. Verify changes by opening the file in a browser and exercising the UI. localStorage data persists between reloads, so use DevTools → Application → Local Storage to inspect/clear `ib_menu` and `ib_log` while testing.
+- **No test or lint tooling exists** — no `package.json`, no test runner. Verify changes by opening the file in a browser and exercising the UI. localStorage data persists between reloads, so use DevTools → Application → Local Storage to inspect/clear `ib_menu`, `ib_log`, and `ib_supplies` while testing.
 
 Because everything is inline in one file, edit the relevant `<style>`, HTML, or `<script>` block in place — there are no modules to import or files to wire up.
 

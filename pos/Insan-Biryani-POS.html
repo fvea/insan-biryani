@@ -879,6 +879,10 @@
       const newName = String(val).trim();
       if (!newName) { renderSupplyList(); return toast('Supply name cannot be empty', '#C62828'); }
       const oldName = supply.name;
+      if (newName !== oldName && supplies.some((s, i) => i !== idx && s.name === newName)) {
+        renderSupplyList();
+        return toast('A supply with that name already exists', '#C62828');
+      }
       supply.name = newName;
       // Supplies (like menu items) are matched by name — cascade a rename
       // into every recipe that references the old name so they don't go

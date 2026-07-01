@@ -38,12 +38,13 @@ updated HTML file on the device.
 
 ## Data & persistence
 
-Everything is in `localStorage` on that one device/browser. Two keys:
+Everything is in `localStorage` on that one device/browser. Three keys:
 
-| Key       | Holds                          |
-|-----------|--------------------------------|
-| `ib_menu` | the menu (categories + items)  |
-| `ib_log`  | all sales records             |
+| Key           | Holds                                        |
+|---------------|-----------------------------------------------|
+| `ib_menu`     | the menu (categories + items, incl. recipes) |
+| `ib_log`      | all sales records                            |
+| `ib_supplies` | container/cutlery supply types + stock counts|
 
 There is **no sync and no backend** — data is per-device, per-browser. A
 different device, a different browser, or cleared site data = different/empty
@@ -53,13 +54,22 @@ data.
 
 ```js
 [
-  { name: "🍚 Biryani", items: [ { name: "Chicken Biryani", price: 210 }, ... ] },
+  { name: "🍚 Biryani", items: [
+      { name: "Chicken Biryani", price: 210, supplies: [
+          { supplyName: "Large Tub", qty: 1 },
+          { supplyName: "Cutlery", qty: 1 }
+        ] },
+      ...
+  ] },
   ...
 ]
 ```
 
 A default menu is hardcoded in `menuData` and used only when `ib_menu` is empty;
-once edited, the saved version wins.
+once edited, the saved version wins. Each item's `supplies` array is its
+container/cutlery recipe — see **Supply tracking** below.
+`normalizeMenuData()` defaults `supplies` to `[]` on load for items saved
+before this field existed.
 
 ### Sales record shape (`ib_log` entries)
 
@@ -77,13 +87,43 @@ once edited, the saved version wins.
   payMode: "Cash",             // "Unpaid" | "Cash" | "GCash" | "Maya"
   tendered: 500,               // cash only, else 0
   notes: "extra spicy",
-  status: "pending"            // "pending" | "done"
+  status: "pending",           // "pending" | "done"
+  suppliesUsed: [ { supplyName: "Large Tub", qty: 1 }, ... ]
 }
 ```
 
 `normalizeEntry()` migrates older/partial records on load (e.g. legacy entries
-with no `status` are treated as `done`), so the shape above is always
-guaranteed at runtime.
+with no `status` are treated as `done`, entries with no `suppliesUsed` default
+to `[]`), so the shape above is always guaranteed at runtime.
+
+### Supply tracking (`ib_supplies`) — containers & cutlery inventory
+
+`supplies` is a flat list of stock pools, independent of the menu:
+`[{ name: "Large Tub", stock: 120 }, ...]`. Each menu item's `supplies` array
+(above) is its recipe — which supply types + quantities one order of that
+item consumes. Supply types are shared across dishes and matched **by
+name**, same convention as menu items (see "match by name" note below).
+
+**Stock decrements at `logSale()` time, not when an order is later marked
+Done.** Containers/cutlery are physically used to pack the order right when
+it's placed, before payment is collected — "Done" only tracks
+payment/completion (`isCompletedSale()`), not packing. To keep stock
+consistent through edits and deletes, each log entry snapshots exactly what
+it consumed into `suppliesUsed` (computed from the recipe *at log time*):
+
+- `logSale()` → `consumeSupplies(suppliesUsed)`
+- `delLog()` → `restoreSupplies(entry.suppliesUsed)`
+- `saveOrderEdit()` → `restoreSupplies(oldSuppliesUsed)` then
+  `consumeSupplies(newSuppliesUsed)` (recomputed from the current recipe)
+
+Using the entry's own snapshot (rather than recomputing from the live
+recipe) means editing a dish's recipe later doesn't retroactively change
+what a past order is credited/debited for on delete.
+
+A banner (`renderLowStockBanner()`, `#lowStockBanner`) shows whenever any
+supply's stock drops below `LOW_STOCK_THRESHOLD` (50), naming every low
+supply. It's outside any modal so it's visible on the main screen without
+opening Supplies.
 
 ### "Completed" sale = `done` **and** paid
 
@@ -96,9 +136,12 @@ can't mark an order **Done** while it's still `Unpaid`.
 
 | Area              | Key functions                                                        |
 |-------------------|----------------------------------------------------------------------|
-| Init / migration  | `init()` (IIFE), `normalizeEntry()`                                   |
+| Init / migration  | `init()` (IIFE), `normalizeEntry()`, `normalizeMenuData()`, `normalizeSupply()` |
 | Menu render       | `buildUI()`, `refreshBadges()`                                        |
 | Menu CRUD         | `openMenuModal()`, `addCategory()`, `deleteCategory()`, `updateItem()`, `addNewItem()`, `deleteItem()`, `saveMenuData()` |
+| Item recipes      | `renderItemRecipeChips()`, `addItemSupply()`, `removeItemSupply()` (rendered inline inside `renderMenuEditorItems()`) |
+| Supply inventory  | `openSupplyModal()`, `renderSupplyList()`, `addSupply()`, `updateSupply()`, `deleteSupply()`, `adjustSupplyStock()`, `saveSupplies()`, `renderLowStockBanner()` |
+| Supply consumption| `computeSuppliesUsed()`, `consumeSupplies()`, `restoreSupplies()`, `findMenuItem()`     |
 | Cart              | `addItem()`, `changeQty()`, `renderCart()`, `clearCart()`            |
 | Order entry       | `setReadyMinutes()`, `setMode()`, `calcChange()`, `logSale()`        |
 | Log render        | `rebuildLog()`, `markDone()`, `delLog()`, `clearSalesLog()`          |
@@ -134,4 +177,7 @@ Rendered values pass through `esc()` / `csvCell()`, so user-entered text
 - Receipt printing depends on the browser/tablet having a working print path to
   a 58mm thermal printer.
 - Cart/menu match items **by name**, so two items with the same name (even in
-  different categories) would collide.
+  different categories) would collide. Supply types are matched by name too —
+  renaming a supply in the Supplies modal cascades into every item recipe
+  that references it, but deleting one does not strip dangling references
+  from recipes (they just stop tracking stock for that line).

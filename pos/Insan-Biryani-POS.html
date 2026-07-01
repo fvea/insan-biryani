@@ -336,6 +336,7 @@
 <div class="main layout-split">
   
   <div class="left-pane">
+    <div id="lowStockBanner" style="display:none;"></div>
     <div class="stats">
       <div class="stat"><div class="stat-v" id="stTxns">0</div><div class="stat-l">Transactions</div></div>
       <div class="stat"><div class="stat-v" id="stItems">0</div><div class="stat-l">Items Sold</div></div>
@@ -348,9 +349,12 @@
     <div class="card menu-section">
       <div class="card-hdr">
         <div class="card-title">📋 Menu</div>
-        <button class="btn btn-ghost" style="padding: 8px 14px; font-size: 0.9rem;" onclick="openMenuModal()">⚙️ Manage Menu</button>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-ghost" style="padding: 8px 14px; font-size: 0.9rem;" onclick="openSupplyModal()">📦 Supplies</button>
+          <button class="btn btn-ghost" style="padding: 8px 14px; font-size: 0.9rem;" onclick="openMenuModal()">⚙️ Manage Menu</button>
+        </div>
       </div>
-      
+
       <div class="cat-tabs" id="catTabs"></div>
       <div id="menuContainer"></div>
     </div>
@@ -465,6 +469,26 @@
       <div style="display: flex; gap: 10px;">
         <input id="newCatName" class="form-inp" style="margin:0;" placeholder="e.g. 🥤 Drinks">
         <button class="btn btn-primary" onclick="addCategory()">Add</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="supplyModal" onclick="if(event.target===this) closeSupplyModal()">
+  <div class="modal-card">
+    <div class="card-hdr">
+      <h2 style="font-size: 1.4rem; color: var(--pri-dk);">📦 Container &amp; Cutlery Supplies</h2>
+      <button class="btn btn-ghost" onclick="closeSupplyModal()">✕</button>
+    </div>
+
+    <div id="supplyList"></div>
+
+    <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid var(--border);">
+      <h3 style="font-size: 1.1rem; margin-bottom: 10px;">➕ Add New Supply Type</h3>
+      <div style="display: flex; gap: 10px;">
+        <input id="newSupplyName" class="form-inp" style="margin:0;" placeholder="e.g. Large Tub">
+        <input id="newSupplyStock" class="form-inp" style="margin:0; max-width:110px;" type="number" min="0" placeholder="Stock">
+        <button class="btn btn-primary" onclick="addSupply()">Add</button>
       </div>
     </div>
   </div>
@@ -585,6 +609,8 @@
   ============================================= */
   let cart = [];
   let log  = [];
+  let supplies = []; // container/cutlery stock pools — see ib_supplies below
+  const LOW_STOCK_THRESHOLD = 50;
   let payMode = 'Unpaid';
   let readyMinutes = 10;
   let editOrderId = null;
@@ -614,16 +640,23 @@
     try {
       const savedMenu = localStorage.getItem('ib_menu');
       if (savedMenu) menuData = JSON.parse(savedMenu);
-      
+
       const savedLog = localStorage.getItem('ib_log');
       if (savedLog) log = JSON.parse(savedLog);
+
+      const savedSupplies = localStorage.getItem('ib_supplies');
+      if (savedSupplies) supplies = JSON.parse(savedSupplies);
     } catch(e) {}
 
+    normalizeMenuData();
+    supplies = supplies.map(normalizeSupply);
     log = log.map(normalizeEntry);
-    
+
     buildUI();
     rebuildLog();
     refreshStats();
+    renderLowStockBanner();
+    renderSupplyList();
     updateReadyPreview();
   })();
 
@@ -677,6 +710,15 @@
       qty: Number(i.qty) || 0
     })).filter(i => i.name && i.qty > 0) : [];
     const legacyDone = entry.status ? entry.status === 'done' : true;
+    // Legacy entries (logged before supply tracking existed) have no known
+    // suppliesUsed — default to [] rather than guessing from the current
+    // recipe, since the recipe may have changed since they were logged.
+    const suppliesUsed = Array.isArray(entry.suppliesUsed)
+      ? entry.suppliesUsed.map(u => ({
+          supplyName: String(u.supplyName || ''),
+          qty: Number(u.qty) || 0
+        })).filter(u => u.supplyName && u.qty > 0)
+      : [];
 
     return {
       ...entry,
@@ -692,12 +734,228 @@
       payMode: entry.payMode || (legacyDone ? 'Cash' : 'Unpaid'),
       tendered: Number(entry.tendered) || 0,
       notes: String(entry.notes || ''),
-      status: legacyDone ? 'done' : 'pending'
+      status: legacyDone ? 'done' : 'pending',
+      suppliesUsed
     };
   }
 
   function saveLog() {
     localStorage.setItem('ib_log', JSON.stringify(log));
+  }
+
+  /* =============================================
+     CONTAINER / CUTLERY SUPPLY INVENTORY
+
+     Design choice: stock decrements at logSale() time (when the order is
+     placed), not when it's later marked Done. Containers/cutlery are
+     physically used to pack the order right away, before payment is
+     collected — "Done" only tracks payment/completion, not packing. Each
+     log entry snapshots exactly what it consumed in `suppliesUsed` (computed
+     from the recipe at log time), so delLog()/saveOrderEdit() can restore or
+     re-apply the *original* consumption even if the recipe is edited later.
+  ============================================= */
+  function normalizeMenuData() {
+    menuData.forEach(cat => {
+      (cat.items || []).forEach(item => {
+        if (!Array.isArray(item.supplies)) item.supplies = [];
+      });
+    });
+  }
+
+  function normalizeSupply(s) {
+    return { name: String(s.name || ''), stock: Number(s.stock) || 0 };
+  }
+
+  function saveSupplies() {
+    localStorage.setItem('ib_supplies', JSON.stringify(supplies));
+    renderLowStockBanner();
+    renderSupplyList();
+  }
+
+  function findMenuItem(name) {
+    for (const cat of menuData) {
+      const found = (cat.items || []).find(i => i.name === name);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  // Aggregate the supplies consumed by a set of order items (cart or edit
+  // items), using each menu item's current recipe.
+  function computeSuppliesUsed(items) {
+    const usage = {};
+    (items || []).forEach(orderItem => {
+      const menuItem = findMenuItem(orderItem.name);
+      const recipe = (menuItem && menuItem.supplies) || [];
+      const qty = Number(orderItem.qty) || 0;
+      recipe.forEach(r => {
+        if (!r.supplyName || !r.qty || !qty) return;
+        usage[r.supplyName] = (usage[r.supplyName] || 0) + r.qty * qty;
+      });
+    });
+    return Object.entries(usage).map(([supplyName, qty]) => ({ supplyName, qty }));
+  }
+
+  function consumeSupplies(usageList) {
+    if (!usageList || !usageList.length) return;
+    usageList.forEach(u => {
+      const supply = supplies.find(s => s.name === u.supplyName);
+      if (supply) supply.stock -= u.qty;
+    });
+    saveSupplies();
+  }
+
+  function restoreSupplies(usageList) {
+    if (!usageList || !usageList.length) return;
+    usageList.forEach(u => {
+      const supply = supplies.find(s => s.name === u.supplyName);
+      if (supply) supply.stock += u.qty;
+    });
+    saveSupplies();
+  }
+
+  function renderLowStockBanner() {
+    const el = document.getElementById('lowStockBanner');
+    if (!el) return;
+    const low = supplies.filter(s => s.stock < LOW_STOCK_THRESHOLD);
+    if (!low.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
+    el.style.display = 'block';
+    el.innerHTML = `
+      <div style="background: var(--red-lt); border: 2px solid var(--red); color: var(--red); border-radius: var(--r-sm); padding: 14px 16px; margin-bottom: 20px; font-weight: 800;">
+        ⚠ Low stock — restock/prep soon: ${low.map(s => `${esc(s.name)} (${s.stock})`).join(', ')}
+      </div>`;
+  }
+
+  function openSupplyModal() {
+    renderSupplyList();
+    document.getElementById('supplyModal').classList.add('open');
+  }
+
+  function closeSupplyModal() {
+    document.getElementById('supplyModal').classList.remove('open');
+  }
+
+  function renderSupplyList() {
+    const container = document.getElementById('supplyList');
+    if (!container) return;
+    if (!supplies.length) {
+      container.innerHTML = '<div class="cart-empty">No supply types yet. Add one below.</div>';
+      return;
+    }
+    container.innerHTML = supplies.map((s, i) => {
+      const low = s.stock < LOW_STOCK_THRESHOLD;
+      return `
+        <div class="menu-crud-row" style="${low ? 'border-color: var(--red); background: var(--red-lt);' : ''}">
+          <input type="text" value="${esc(s.name)}" onchange="updateSupply(${i}, 'name', this.value)">
+          <input type="number" value="${s.stock}" onchange="updateSupply(${i}, 'stock', this.value)">
+          <button class="crud-btn btn-ghost" onclick="adjustSupplyStock(${i})">± Adjust</button>
+          <button class="crud-btn btn-red" onclick="deleteSupply(${i})">X</button>
+          ${low ? '<span class="badge b-unpaid">Low</span>' : ''}
+        </div>`;
+    }).join('');
+  }
+
+  function addSupply() {
+    const nameIn = document.getElementById('newSupplyName');
+    const stockIn = document.getElementById('newSupplyStock');
+    const name = nameIn.value.trim();
+    const stock = parseInt(stockIn.value, 10) || 0;
+    if (!name) return toast('Enter a supply name', '#C62828');
+    if (supplies.some(s => s.name === name)) return toast('A supply with that name already exists', '#C62828');
+
+    supplies.push({ name, stock });
+    saveSupplies();
+    nameIn.value = '';
+    stockIn.value = '';
+    toast('Supply Added');
+  }
+
+  function updateSupply(idx, field, val) {
+    const supply = supplies[idx];
+    if (!supply) return;
+    if (field === 'stock') {
+      supply.stock = parseInt(val, 10) || 0;
+    } else {
+      const newName = String(val).trim();
+      if (!newName) { renderSupplyList(); return toast('Supply name cannot be empty', '#C62828'); }
+      const oldName = supply.name;
+      if (newName !== oldName && supplies.some((s, i) => i !== idx && s.name === newName)) {
+        renderSupplyList();
+        return toast('A supply with that name already exists', '#C62828');
+      }
+      supply.name = newName;
+      // Supplies (like menu items) are matched by name — cascade a rename
+      // into every recipe that references the old name so they don't go
+      // silently unmatched.
+      if (oldName !== newName) {
+        menuData.forEach(cat => (cat.items || []).forEach(item => {
+          (item.supplies || []).forEach(r => { if (r.supplyName === oldName) r.supplyName = newName; });
+        }));
+        saveMenuData();
+      }
+    }
+    saveSupplies();
+  }
+
+  function deleteSupply(idx) {
+    const s = supplies[idx];
+    if (!s) return;
+    if (!confirm(`Delete supply "${s.name}"? Menu items assigned to it will keep the reference but it will no longer track stock.`)) return;
+    supplies.splice(idx, 1);
+    saveSupplies();
+  }
+
+  function adjustSupplyStock(idx) {
+    const s = supplies[idx];
+    if (!s) return;
+    const delta = prompt(`Adjust stock for "${s.name}" (current: ${s.stock}).\nEnter amount to add, or a negative number to subtract:`, '');
+    if (delta === null) return;
+    const n = parseInt(delta, 10);
+    if (!n) return toast('Enter a non-zero number', '#C62828');
+    s.stock += n;
+    saveSupplies();
+    toast(`Stock updated: ${s.name} → ${s.stock}`);
+  }
+
+  function supplyOptionsHtml() {
+    if (!supplies.length) return '<option value="">No supplies yet — add one in 📦 Supplies</option>';
+    return supplies.map(s => `<option value="${esc(s.name)}">${esc(s.name)}</option>`).join('');
+  }
+
+  function renderItemRecipeChips(catIdx, i, item) {
+    const list = item.supplies || [];
+    if (!list.length) return '<span style="font-size:0.85rem; color: var(--txt-3);">No containers/cutlery assigned yet.</span>';
+    return list.map((r, ri) => `
+      <span class="badge" style="background:var(--bg-soft); color:var(--txt-2); display:inline-flex; align-items:center; gap:6px;">
+        ${esc(r.supplyName)} ×${r.qty}
+        <button onclick="removeItemSupply(${catIdx}, ${i}, ${ri})" style="border:none; background:none; cursor:pointer; font-weight:800; color:var(--red);">✕</button>
+      </span>
+    `).join('');
+  }
+
+  function addItemSupply(catIdx, i) {
+    const sel = document.getElementById(`recipeSupplySelect_${catIdx}_${i}`);
+    const qtyIn = document.getElementById(`recipeQty_${catIdx}_${i}`);
+    const supplyName = sel.value;
+    const qty = parseInt(qtyIn.value, 10) || 0;
+    if (!supplyName) return toast('Add a supply type first (📦 Supplies)', '#C62828');
+    if (qty <= 0) return toast('Enter a quantity of at least 1', '#C62828');
+
+    const item = menuData[catIdx].items[i];
+    if (!Array.isArray(item.supplies)) item.supplies = [];
+    const existing = item.supplies.find(r => r.supplyName === supplyName);
+    if (existing) existing.qty += qty; else item.supplies.push({ supplyName, qty });
+    saveMenuData();
+    renderMenuEditorItems();
+    toast('Container assigned');
+  }
+
+  function removeItemSupply(catIdx, i, recipeIdx) {
+    const item = menuData[catIdx].items[i];
+    if (!item || !item.supplies) return;
+    item.supplies.splice(recipeIdx, 1);
+    saveMenuData();
+    renderMenuEditorItems();
   }
 
   function formatClock(date) {
@@ -799,7 +1057,8 @@
       return;
     }
     const cat = menuData[catIdx];
-    
+    const supplyOptions = supplyOptionsHtml();
+
     let html = `
       <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
         <h3 style="font-size:1.1rem">Items in ${esc(cat.name)}</h3>
@@ -807,11 +1066,25 @@
       </div>`;
 
     cat.items.forEach((item, i) => {
+      if (!Array.isArray(item.supplies)) item.supplies = [];
       html += `
-        <div class="menu-crud-row">
-          <input type="text" value="${esc(item.name)}" onchange="updateItem(${catIdx}, ${i}, 'name', this.value)">
-          <input type="number" value="${item.price}" onchange="updateItem(${catIdx}, ${i}, 'price', this.value)">
-          <button class="crud-btn btn-red" onclick="deleteItem(${catIdx}, ${i})">X</button>
+        <div class="menu-crud-row" style="flex-direction: column; align-items: stretch;">
+          <div style="display:flex; gap:10px; align-items:center;">
+            <input type="text" value="${esc(item.name)}" onchange="updateItem(${catIdx}, ${i}, 'name', this.value)" style="flex:1;">
+            <input type="number" value="${item.price}" onchange="updateItem(${catIdx}, ${i}, 'price', this.value)" style="flex:0 0 100px; max-width:100px;">
+            <button class="crud-btn btn-red" onclick="deleteItem(${catIdx}, ${i})">X</button>
+          </div>
+          <div style="margin-top:10px; padding-top:10px; border-top: 1px dashed var(--border);">
+            <div style="font-size:0.8rem; font-weight:800; text-transform:uppercase; color: var(--txt-3); margin-bottom:6px;">Containers / cutlery per order</div>
+            <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px;">
+              ${renderItemRecipeChips(catIdx, i, item)}
+            </div>
+            <div style="display:flex; gap:8px;">
+              <select id="recipeSupplySelect_${catIdx}_${i}" style="flex:2; padding:8px; border:1px solid #ccc; border-radius:6px;">${supplyOptions}</select>
+              <input type="number" id="recipeQty_${catIdx}_${i}" min="1" value="1" style="flex:0 0 70px; max-width:70px; padding:8px; border:1px solid #ccc; border-radius:6px;">
+              <button class="crud-btn btn-green" onclick="addItemSupply(${catIdx}, ${i})">+ Add</button>
+            </div>
+          </div>
         </div>`;
     });
 
@@ -868,7 +1141,7 @@
     const name = document.getElementById(`newItemName_${catIdx}`).value.trim();
     const price = parseFloat(document.getElementById(`newItemPrice_${catIdx}`).value) || 0;
     if(name && price > 0) {
-      menuData[catIdx].items.push({name, price});
+      menuData[catIdx].items.push({name, price, supplies: []});
       saveMenuData();
       renderMenuEditorItems();
       toast('Item Added');
@@ -1025,6 +1298,7 @@
 
     const now = new Date();
     const readyAt = addMinutes(now, readyMinutes);
+    const suppliesUsed = computeSuppliesUsed(cart);
 
     log.push({
       id: getNextSaleId(),
@@ -1038,10 +1312,12 @@
       payMode,
       tendered: payMode === 'Cash' ? tendered : 0,
       notes: document.getElementById('notesIn').value.trim(),
-      status: 'pending'
+      status: 'pending',
+      suppliesUsed
     });
-    
+
     saveLog();
+    consumeSupplies(suppliesUsed);
     rebuildLog(); refreshStats(); clearCart();
     toast(`✅ Order logged! Ready at ${formatClock(readyAt)}`);
   }
@@ -1316,6 +1592,9 @@
     if (editPayMode === 'Cash' && tendered < total) return toast('⚠ Insufficient cash!', '#C62828');
     if (editStatus === 'done' && editPayMode === 'Unpaid') return toast('Record payment before marking Done.', '#C62828');
 
+    const oldSuppliesUsed = entry.suppliesUsed || [];
+    const newSuppliesUsed = computeSuppliesUsed(editItems);
+
     entry.customerName = document.getElementById('editCustomerNameIn').value.trim();
     entry.notes = document.getElementById('editNotesIn').value.trim();
     entry.items = editItems.map(i => ({...i}));
@@ -1324,11 +1603,14 @@
     entry.tendered = editPayMode === 'Cash' ? tendered : 0;
     entry.status = editStatus;
     entry.etaMinutes = editReadyMinutes;
+    entry.suppliesUsed = newSuppliesUsed;
     if (editReadyDirty || !entry.readyAtIso) {
       entry.readyAtIso = addMinutes(new Date(), editReadyMinutes).toISOString();
     }
 
     saveLog();
+    restoreSupplies(oldSuppliesUsed);
+    consumeSupplies(newSuppliesUsed);
     rebuildLog();
     refreshStats();
     closeOrderEditModal();
@@ -1459,6 +1741,8 @@
 
   function delLog(id) {
     if(!confirm('Delete this record?')) return;
+    const entry = log.find(x => String(x.id) === String(id));
+    if (entry) restoreSupplies(entry.suppliesUsed || []);
     log = log.filter(x => String(x.id) !== String(id));
     saveLog();
     rebuildLog(); refreshStats();

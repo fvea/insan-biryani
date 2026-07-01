@@ -281,6 +281,25 @@
     .btn-red { background: var(--red); color: white; }
     .btn-green { background: var(--green); color: white; }
 
+    /* ======= SALES SUMMARY (dashboard) ======= */
+    .summary-totals {
+      display: flex; justify-content: space-around; gap: 10px;
+      background: var(--bg-soft); border: 1px solid var(--border); border-radius: var(--r-sm);
+      padding: 14px; margin-bottom: 18px; text-align: center;
+    }
+    .summary-tot-v { font-size: 1.4rem; font-weight: 900; color: var(--pri-dk); line-height: 1.1; }
+    .summary-tot-l { font-size: 0.72rem; text-transform: uppercase; font-weight: 700; color: var(--txt-3); margin-top: 3px; }
+    .summary-row {
+      display: grid; grid-template-columns: 1fr auto; gap: 5px 14px;
+      align-items: center; padding: 12px 2px; border-bottom: 1px solid var(--border);
+    }
+    .summary-row:last-child { border-bottom: none; }
+    .summary-name { font-size: 1.05rem; font-weight: 800; color: var(--txt); }
+    .summary-qty { font-size: 1.3rem; font-weight: 900; color: var(--pri-dk); text-align: right; }
+    .summary-bar-wrap { background: var(--bg-soft); border: 1px solid var(--border); border-radius: 8px; height: 12px; overflow: hidden; }
+    .summary-bar { height: 100%; background: linear-gradient(90deg, var(--pri-lt), var(--pri)); border-radius: 8px; }
+    .summary-rev { font-size: 0.85rem; font-weight: 700; color: var(--txt-3); text-align: right; }
+
     @media (max-width: 640px) {
       .field-grid { grid-template-columns: 1fr; }
       .ready-options { grid-template-columns: repeat(2, 1fr); }
@@ -340,6 +359,7 @@
       <div class="card-hdr">
         <div class="card-title">📊 Sales Log</div>
         <div style="display: flex; gap: 8px;">
+          <button class="btn btn-primary" style="padding: 10px 16px; font-size: 0.9rem;" onclick="openSummaryModal()">📈 Summary</button>
           <button class="btn btn-export" onclick="exportCSV()">⬇ Export CSV</button>
           <button class="btn btn-red" style="padding: 10px 16px; font-size: 0.9rem;" onclick="clearSalesLog()">🗑 Reset Log</button>
         </div>
@@ -546,6 +566,17 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="summaryModal" onclick="if(event.target===this) closeSummaryModal()">
+  <div class="modal-card">
+    <div class="card-hdr">
+      <h2 style="font-size: 1.4rem; color: var(--pri-dk);">📊 Tonight's Sales</h2>
+      <button class="btn btn-ghost" onclick="closeSummaryModal()">✕</button>
+    </div>
+    <div class="summary-totals" id="summaryTotals"></div>
+    <div id="summaryList"></div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -621,6 +652,22 @@
 
   function isCompletedSale(entry) {
     return entry && entry.status === 'done' && isPaid(entry);
+  }
+
+  // Roll up a set of orders into per-item totals, ranked by quantity sold.
+  // Shared by the stat cards (Best Seller) and the Sales Summary dashboard so
+  // their numbers always agree.
+  function salesByItem(entries) {
+    const map = {};
+    (entries || []).forEach(e => (e.items || []).forEach(i => {
+      const name = i.name;
+      if (!name) return;
+      if (!map[name]) map[name] = { name, qty: 0, revenue: 0 };
+      const qty = Number(i.qty) || 0;
+      map[name].qty += qty;
+      map[name].revenue += (Number(i.price) || 0) * qty;
+    }));
+    return Object.values(map).sort((a, b) => b.qty - a.qty || a.name.localeCompare(b.name));
   }
 
   function normalizeEntry(entry) {
@@ -1432,30 +1479,57 @@
   function refreshStats() {
     const completed = log.filter(isCompletedSale);
     const total = completed.reduce((s, e) => s + e.total, 0);
-    const itemsCt = completed.reduce((s, e) => s + e.items.reduce((a, i) => a + i.qty, 0), 0);
-    
-    // Calculate best seller based on total quantities sold
-    const counts = {};
-    let bestSeller = "—";
-    let maxQty = 0;
-    
-    completed.forEach(e => {
-      e.items.forEach(i => {
-        counts[i.name] = (counts[i.name] || 0) + i.qty;
-      });
-    });
-
-    for (const name in counts) {
-      if (counts[name] > maxQty) {
-        maxQty = counts[name];
-        bestSeller = name;
-      }
-    }
+    const ranked = salesByItem(completed);
+    const itemsCt = ranked.reduce((s, r) => s + r.qty, 0);
+    const bestSeller = ranked.length ? ranked[0].name : '—';
 
     document.getElementById('hdrTotal').textContent = '₱' + total.toLocaleString();
     document.getElementById('stTxns').textContent = completed.length;
     document.getElementById('stItems').textContent = itemsCt;
     document.getElementById('stBest').textContent = bestSeller;
+  }
+
+  /* =============================================
+     SALES SUMMARY (per-item dashboard)
+  ============================================= */
+  function openSummaryModal() {
+    renderSalesSummary();
+    document.getElementById('summaryModal').classList.add('open');
+  }
+
+  function closeSummaryModal() {
+    document.getElementById('summaryModal').classList.remove('open');
+  }
+
+  function renderSalesSummary() {
+    const completed = log.filter(isCompletedSale);
+    const ranked = salesByItem(completed);
+    const totalItems = ranked.reduce((s, r) => s + r.qty, 0);
+    const totalSales = completed.reduce((s, e) => s + e.total, 0);
+
+    document.getElementById('summaryTotals').innerHTML = `
+      <div><div class="summary-tot-v">${completed.length}</div><div class="summary-tot-l">Orders</div></div>
+      <div><div class="summary-tot-v">${totalItems}</div><div class="summary-tot-l">Items</div></div>
+      <div><div class="summary-tot-v">₱${totalSales.toLocaleString()}</div><div class="summary-tot-l">Sales</div></div>
+    `;
+
+    const list = document.getElementById('summaryList');
+    if (!ranked.length) {
+      list.innerHTML = '<div class="cart-empty">No completed sales yet tonight.</div>';
+      return;
+    }
+
+    const maxQty = ranked[0].qty || 1;
+    list.innerHTML = ranked.map(r => {
+      const pct = Math.max(6, Math.round((r.qty / maxQty) * 100));
+      return `
+        <div class="summary-row">
+          <div class="summary-name">${esc(r.name)}</div>
+          <div class="summary-qty">${r.qty}</div>
+          <div class="summary-bar-wrap"><div class="summary-bar" style="width:${pct}%"></div></div>
+          <div class="summary-rev">₱${r.revenue.toLocaleString()}</div>
+        </div>`;
+    }).join('');
   }
 
   function toast(msg, bg = '#2E7D32') {
